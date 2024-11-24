@@ -220,7 +220,7 @@ def create_main_ui_frame(container):
     user_and_datetime_label.grid_columnconfigure(1, weight=1)  # Right side (datetime label)
 
     # User label
-    user = tk.Label(user_and_datetime_label, text=f'Welcome user, {Username}', anchor='w', padx=20, font=('Arial', 18, 'bold italic'))
+    user = tk.Label(user_and_datetime_label, text=f'Welcome, {Username}', anchor='w', padx=20, font=('Arial', 18, 'bold italic'))
     user.grid(row=0, column=0, sticky='w')  # Align to the left
 
     # Date and time label
@@ -2402,7 +2402,7 @@ class LockUnlock:
             position = data['position']
 
             # Now send the door log data to the Flask app for insertion
-            action_taken = 'Lock' if self.action in ['successful_close', 'automatic_logout'] else self.action
+            action_taken = 'Lock' if self.action in ['successful_close', 'automatic_logout'] else 'Unlock'
             self._insert_door_log(userName, accountType, position, action_taken)
             
             # Handle actions based on the door status
@@ -2541,6 +2541,8 @@ class LockUnlock:
                         accountType = user_data['accountType']
                         position = user_data['position']
 
+                        action_taken = 'Lock' if self.action in ['successful_close', 'automatic_logout', 'Lock', 'lock'] else 'Unlock'
+
                         # Log door action with the Flask API
                         log_response = requests.post(
                             "https://emc-san-mateo.com/api/log_door_action",  # Flask API endpoint
@@ -2548,7 +2550,7 @@ class LockUnlock:
                                 "username": username,
                                 "accountType": accountType,
                                 "position": position,
-                                "action_taken": self.action
+                                "action_taken": action_taken
                             }
                         )
                         log_data = log_response.json()
