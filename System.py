@@ -948,6 +948,8 @@ def show_doorLog():
         populate_treeview()
 
     def populate_treeview(order_by="username", sort="ASC"):
+        global search_term
+
         # Clear the Treeview
         for row in tree.get_children():
             tree.delete(row)
@@ -955,56 +957,59 @@ def show_doorLog():
         try:
             # Fetch data from Flask API
             response = requests.get(
-                f'https://emc-san-mateo.com/api/door_logs',
+                'https://emc-san-mateo.com/api/door_logs',
                 params={'order_by': order_by, 'sort': sort}
             )
             response.raise_for_status()  # Raise an error for bad responses
             logs = response.json()
 
+            # Print out the raw logs to check the time values
+            print("Raw API Response:")
+            print(logs)  # Check the API response to see if times are correct
+
+            # Filter logs based on search_term
             filtered_logs = []
             search_term_lower = search_term.lower()
 
             for log in logs:
-                time_str = "N/A"
-                if log['time'] is not None:
-                    total_seconds = int(log['time'])
-                    hours, remainder = divmod(total_seconds, 3600)
-                    minutes, seconds = divmod(remainder, 60)
-                    period = "AM" if hours < 12 else "PM"
-                    hours = hours % 12 or 12  # Convert 0 to 12 for midnight
-                    time_str = f"{hours:02}:{minutes:02}:{seconds:02} {period}"
+                time_str = log.get('time', "N/A")  # Directly use the time value as it is
+                print(f"Time for log {log['username']}: {time_str}")  # Debugging print
 
                 if (
-                    search_term_lower in log['username'].lower() or
-                    search_term_lower in log['accountType'].lower() or
-                    search_term_lower in log['position'].lower() or
-                    search_term_lower in log['date'].lower() or
+                    search_term_lower in log.get('username', '').lower() or
+                    search_term_lower in log.get('accountType', '').lower() or
+                    search_term_lower in log.get('position', '').lower() or
+                    search_term_lower in log.get('date', '').lower() or
                     search_term_lower in time_str.lower() or
-                    search_term_lower in log['action_taken'].lower()
+                    search_term_lower in log.get('action_taken', '').lower()
                 ):
                     filtered_logs.append(log)
 
+            # Display filtered logs
             if not filtered_logs:
-                tree.insert("", "end", values=("    ", "    ", "        No search match", "", "", ""), tags=('nomatch',))
+                tree.insert("", "end", values=("", "", "No search match", "", "", ""), tags=('nomatch',))
                 tree.tag_configure('nomatch', background="#f5c6cb", foreground="#721c24")
                 return
 
             for i, log in enumerate(filtered_logs):
                 tag = 'evenrow' if i % 2 == 0 else 'oddrow'
+                time_str = log.get('time', "N/A")  # Directly insert the time from the database
+                print(f"Inserting time: {time_str}")  # Debugging print for each inserted time
                 tree.insert(
                     "",
                     "end",
                     values=(
-                        log['username'],
-                        log['date'],
-                        time_str,
-                        log['accountType'],
-                        log['position'],
-                        log['action_taken']
+                        log.get('username', "N/A"),
+                        log.get('date', "N/A"),
+                        time_str,  # Display the raw time as fetched from API
+                        log.get('accountType', "N/A"),
+                        log.get('position', "N/A"),
+                        log.get('action_taken', "N/A")
                     ),
                     tags=(tag,)
                 )
-        except requests.exceptions.RequestException as e:
+
+        except requests.RequestException as e:
             tree.insert("", "end", values=("Error", "Could not fetch data", str(e), "", "", ""), tags=('error',))
             tree.tag_configure('error', background="#f8d7da", foreground="#721c24")
 
@@ -1197,7 +1202,7 @@ def show_doorLog():
     refresh_button = tk.Button(button_frame, text="Reload All", padx=20, pady=10, font=('Arial', 18), bg=motif_color, fg="white", relief="raised", bd=4, compound=tk.LEFT, image=refresh_img, command=clear_search)
     refresh_button.image = refresh_img
     refresh_button.grid(row=0, column=3, padx=20, pady=(12, 7), sticky='ew')
-
+ 
 def display_disable_unlock():
     message_box = CustomMessageBox(root=root, title="Disable Unlock", color='red', message="Are you sure to disable lock mechanism?\n\nNOTE: This feauture is dedicated only for power interruptions.", yes_callback=disable_unlock, no_callback=lambda: print("Dsestroyed"), icon_path=os.path.join(os.path.dirname(__file__), 'images', 'warningGrey_icon.png'))
 
@@ -2390,19 +2395,19 @@ class LockUnlock:
         
         username = self.username_entry.get()
         password = self.password_entry.get()
-
+        
         # Send a POST request to the Flask app to validate credentials
         response = requests.post(validate_url, json={'username': username, 'password': password})
         data = response.json()
 
-        if data['status'] == 'success':
+        if data['status'] == 'success' and username == Username and password == Password:
             # If the credentials are valid, get the user details
             userName = data['username']
             accountType = data['accountType']
             position = data['position']
 
             # Now send the door log data to the Flask app for insertion
-            action_taken = 'Lock' if self.action in ['successful_close', 'automatic_logout'] else 'Unlock'
+            action_taken = 'Lock' if self.action in ['successful_close', 'automatic_logout', 'lock', 'Lock'] else 'Unlock'
             self._insert_door_log(userName, accountType, position, action_taken)
             
             # Handle actions based on the door status
