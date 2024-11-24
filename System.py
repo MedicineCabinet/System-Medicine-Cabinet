@@ -2222,8 +2222,19 @@ class LockUnlock:
         # Bind the <Configure> event to the centering function
         self.window.bind("<Configure>", lambda e: self._center_toplevel(self.window))
         self.warning_box = None
-        
-        self._create_ui()
+
+        data = load_data()
+        if data == "Unlocked" and self.type == 'deposit':
+            message_box = CustomMessageBox(
+                    root=self.keyboardFrame,
+                    title="Success",
+                    message="Door is now unlocked.\nPlease insert your medicine inside the Cabinet.\nPress ok if you're finished inserting medicine to proceed on locking the door.",
+                    icon_path=os.path.join(os.path.dirname(__file__), 'images', 'unlock_icon.png'),
+                    ok_callback=lambda: (message_box.destroy(), self._lock_door()),
+                    close_state=True
+                )
+        else:
+            self._create_ui()
 
     def _center_toplevel(self, toplevel):
         # Get the screen width and height
