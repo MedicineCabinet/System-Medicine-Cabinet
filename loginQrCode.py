@@ -111,7 +111,6 @@ class QRLogin:
                         password = data["password"]
 
                         self.result_label.config(text="QR Code is Valid.", fg="green")
-                        time.sleep(1)
                         self.callback(username, password)
                         self.window.destroy()
                     else:

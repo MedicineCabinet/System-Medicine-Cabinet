@@ -24,7 +24,7 @@ import json
 import requests
 
 
-INACTIVITY_PERIOD = 10000 #automatic logout timer in milliseconds
+INACTIVITY_PERIOD = 300000 #automatic logout timer in milliseconds
 inactivity_timer = 0 #initialization of idle timer
 root = None  # Global variable for root window
 
@@ -3042,7 +3042,6 @@ class MedicineDeposit:
             self.loading_window.destroy()
             self.loading_window = None
 
-
     def print_qr_code(self, expiration_date):
         """Prints the QR code and expiration date on the thermal printer,
         repeating the print if the unit is 'syrup' based on quantity,
@@ -3082,43 +3081,10 @@ class MedicineDeposit:
             # Convert the combined image to ESC/POS format for printing
             img_data = self.image_to_escpos_data(combined_image)
 
-            def check_paper(printer):
-                # Send ESC/POS command to query printer status (check for paper)
-                command = b'\x10\x14\x02'  # Example: Query paper status command (specific to printer model)
-                
-                try:
-                    # Send the query command to check paper status
-                    printer.write(command)
-                    printer.flush()
-                    time.sleep(0.5)  # Allow time for response
-
-                    # Read multiple bytes of the printer's response (adjust this as needed)
-                    response = printer.read(8)  # Reading 8 bytes, you can increase if necessary
-
-                    # Print the response for debugging
-                    print("Printer response:", response)
-
-                    # Check for specific response bytes indicating paper status
-                    # Adjust the comparison logic based on the actual response format
-                    if b'\x00' in response:  # Paper is available (example response byte)
-                        return True
-                    elif b'\x01' in response:  # Out of paper (example response byte)
-                        print("Error: Out of paper.")
-                        return False
-                    else:
-                        print("Unknown response from printer:", response)
-                        return False
-                except serial.SerialException as e:
-                    print(f"Error querying printer status: {e}")
-                    return False
-
             # Define the print task in a separate thread to prevent UI freezing
             def print_task():
                 try:
                     with serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=TIMEOUT) as printer:
-
-                        if not check_paper(printer):
-                            return  # Abort printing if no paper is found
                         # If the unit is 'syrup', repeat printing based on quantity
                         if self.unit == 'syrup':
                             for _ in range(self.quantity):
@@ -3372,7 +3338,7 @@ class CustomMessageBox:
         button_frame.pack(fill=tk.X)
         button_frame.grid_columnconfigure(0, weight=1)  # Center buttons
 
-        if self.yes_callback and self.no_callback:
+        if self.yes_callback and self.no_callback and self.reprint is None:
             self._create_yes_no_buttons(button_frame)
         elif self.yes_callback and self.no_callback and self.reprint:
             self._create_yes_print_no_buttons(button_frame)
