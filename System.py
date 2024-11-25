@@ -1710,7 +1710,7 @@ def edit_user(username):
         qr_data = user_data["qrcode_data"] 
         
         # Generate QR code with the decoded data (this is already a string)
-        qr_path = generate_qrcode(qr_data, 'edit', user_data[5])
+        qr_path = generate_qrcode(qr_data, 'edit', user_data["username"])
         
         # You can optionally display or log the generated QR code path
         print(f"QR code generated and saved at: {qr_path}")
@@ -1826,7 +1826,7 @@ def perform_printing(qr_image_path, username, printing_window, userName, mode):
         if mode == 'add':
             # Display success message with QR code
             message_box = CustomMessageBox(
-                root=root,
+                root=content_frame,
                 title="Added User",
                 message=f'Successfully added new user {userName}.\nPlease carefully tear off the QR code sticker.',
                 icon_path=qr_image_path
@@ -1835,7 +1835,7 @@ def perform_printing(qr_image_path, username, printing_window, userName, mode):
         elif mode == 'edit':
             # Display success message with QR code
             message_box = CustomMessageBox(
-                root=root,
+                root=content_frame,
                 title="User QR Code",
                 message=f'Printed the QR code for {userName}.\nPlease carefully tear off the QR code sticker.',
                 icon_path=qr_image_path
@@ -2615,7 +2615,7 @@ class LockUnlock:
                                     message="Lock functionality is now disabled temporarily",
                                     icon_path=os.path.join(os.path.dirname(__file__), 'images', 'unlock_icon.png'),
                                     ok_callback=lambda: (message_box.destroy(), logout('disable-lock-unlock')),
-                                    not_allow_idle=True
+                                    not_allow_idle=True 
                                 )
                         else:
                             # Handle logging error
