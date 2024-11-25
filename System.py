@@ -965,17 +965,12 @@ def show_doorLog():
             response.raise_for_status()  # Raise an error for bad responses
             logs = response.json()
 
-            # Print out the raw logs to check the time values
-            print("Raw API Response:")
-            print(logs)  # Check the API response to see if times are correct
-
             # Filter logs based on search_term
             filtered_logs = []
             search_term_lower = search_term_logs.lower()
 
             for log in logs:
                 time_str = log.get('time', "N/A")  # Directly use the time value as it is
-                print(f"Time for log {log['username']}: {time_str}")  # Debugging print
 
                 if (
                     search_term_lower in log.get('username', '').lower() or
@@ -996,7 +991,6 @@ def show_doorLog():
             for i, log in enumerate(filtered_logs):
                 tag = 'evenrow' if i % 2 == 0 else 'oddrow'
                 time_str = log.get('time', "N/A")  # Directly insert the time from the database
-                print(f"Inserting time: {time_str}")  # Debugging print for each inserted time
                 tree.insert(
                     "",
                     "end",
