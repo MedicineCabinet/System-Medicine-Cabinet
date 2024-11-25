@@ -527,7 +527,7 @@ def deposit_window(permission):
                              title="Deposit Medicine",
                              message=f"Adding Medicine:\n\nGeneric Name: {deposit.generic_name}\nBrand Name: {deposit.name}\nQuantity: {deposit.quantity}\nUnit: {deposit.unit}\nDosage: {deposit.dosage_for_db}\nExpiration Date: {deposit.expiration_date}\n\nClick 'Yes' to confirm medicine.",
                              icon_path=os.path.join(os.path.dirname(__file__), 'images', 'drugs_icon.png'),
-                             yes_callback=lambda: (proceed_depositing(), message_box.destroy()),
+                             yes_callback=lambda: (proceed_depositing(), message_box.destroy(), deposit_Toplevel.destroy()),
                              no_callback=lambda: (message_box.destroy(), deposit_Toplevel.destroy()))
             def proceed_depositing():
                 deposit.save_to_database()
@@ -910,10 +910,12 @@ def show_doorLog():
     keyboard.create_keyboard()
     keyboard.hide_keyboard()  # Initially hide the keyboard
 
+    global active_column_logs, sort_order_logs, search_term_logs
+
     # Local variables to track sorting and search for door logs
-    active_column = "date"  # Default sorting column for door logs
-    sort_order = "ASC"  # Default sorting order
-    search_term = ""  # Store the search term locally
+    active_column_logs = "date"  # Default sorting column for door logs
+    sort_order_logs = "ASC"  # Default sorting order
+    search_term_logs = ""  # Store the search term locally
 
     def activate_button(clicked_button):
         # Reset all buttons to default color
@@ -923,10 +925,10 @@ def show_doorLog():
         clicked_button.config(bg="white", fg="black")
 
     def search_treeview():
-        nonlocal search_term
-        search_term = search_entry.get().lower()
-        if search_term == "search here" or not search_term:
-            search_term = ""
+        global search_term_logs
+        search_term_logs = search_entry.get().lower()
+        if search_term_logs == "search here" or not search_term_logs:
+            search_term_logs = ""
         populate_treeview()  # Repopulate with search filter
 
     def clear_placeholder(event=None):
@@ -940,15 +942,15 @@ def show_doorLog():
             search_entry.config(fg='grey')
 
     def clear_search():
-        nonlocal search_term
-        search_term = ""
+        global search_term_logs
+        search_term_logs = ""
         search_entry.delete(0, tk.END)
         search_entry.insert(0, 'Search here')
         search_entry.config(fg='grey')
         populate_treeview()
 
     def populate_treeview(order_by="username", sort="ASC"):
-        global search_term
+        global search_term_logs
 
         # Clear the Treeview
         for row in tree.get_children():
@@ -969,7 +971,7 @@ def show_doorLog():
 
             # Filter logs based on search_term
             filtered_logs = []
-            search_term_lower = search_term.lower()
+            search_term_lower = search_term_logs.lower()
 
             for log in logs:
                 time_str = log.get('time', "N/A")  # Directly use the time value as it is
@@ -1014,7 +1016,7 @@ def show_doorLog():
             tree.tag_configure('error', background="#f8d7da", foreground="#721c24")
 
     def sort_treeview(column, clicked_button):
-        global active_column, sort_order
+        global active_column_logs, sort_order_logs
 
         # Enable all buttons first
         for btn in buttons:
@@ -1024,23 +1026,23 @@ def show_doorLog():
         clicked_button.config(bg="white", fg="black", state="disabled")
 
         if column == 'date':
-            sort_order = 'DESC'
+            sort_order_logs = 'DESC'
         else:
-            sort_order = 'ASC'
+            sort_order_logs = 'ASC'
 
         # Check if we're clicking the same column to toggle sort order
-        if active_column == column:
+        if active_column_logs == column:
             # Toggle the sort order if the same button is clicked again
-            sort_order = "DESC" if sort_order == "ASC" else "ASC"
-            if active_column == 'date':
-                sort_order = "DESC"
+            sort_order_logs = "DESC" if sort_order_logs == "ASC" else "ASC"
+            if active_column_logs == 'date':
+                sort_order_logs = "DESC"
         else:
             # Set active column and reset sort order to ascending
-            active_column = column
-            sort_order = "ASC"
+            active_column_logs = column
+            sort_order_logs = "ASC"
 
         # Repopulate the treeview with the current sorting
-        populate_treeview(order_by=active_column, sort=sort_order)
+        populate_treeview(order_by=active_column_logs, sort=sort_order_logs)
 
 
     # Header frame for sorting buttons and search bar
