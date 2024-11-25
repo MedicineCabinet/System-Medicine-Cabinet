@@ -3365,9 +3365,9 @@ class CustomMessageBox:
         no_button = tk.Button(button_frame, text="Finish", font=("Arial", 20), bg='white', fg='black', relief="raised", bd=3, padx=20, pady=7, command=self._no_action)
 
         # Make both buttons take the same grid space with sticky="ew"
-        yes_button.grid(row=0, column=0, padx=50, pady=18, sticky="ew")
-        print_button.grid(row=0, column=1, padx=50, pady=18, sticky="ew")
-        no_button.grid(row=0, column=2, padx=50, pady=18, sticky="ew")
+        yes_button.grid(row=0, column=0, padx=30, pady=18, sticky="ew")
+        print_button.grid(row=0, column=1, padx=30, pady=18, sticky="ew")
+        no_button.grid(row=0, column=2, padx=30, pady=18, sticky="ew")
 
         # Set equal column weight to ensure equal button size
         button_frame.grid_columnconfigure(0, weight=1)
@@ -3406,6 +3406,7 @@ class CustomMessageBox:
     def destroy(self):
         """Close the window."""
         self.window.destroy()
+        
 
 
 #-----------------------------------------------MAIN------------------------------------------------------

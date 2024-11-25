@@ -880,6 +880,7 @@ def user_select():
             "message": "Invalid username or password"
         }), 400
 
+#API for inserting door logs manually by entering password and username
 @app.route('/api/insert_door_log', methods=['POST'])
 def insert_door_log():
     data = request.get_json()
@@ -893,7 +894,7 @@ def insert_door_log():
 
     insert_query = """
         INSERT INTO door_logs (username, accountType, position, date, time, action_taken)
-        VALUES (%s, %s, %s, CURDATE(), CURTIME(), %s)
+        VALUES (%s, %s, %s, CURDATE(), NOW(), %s)
     """
     cursor.execute(insert_query, (
         username, 
@@ -908,6 +909,48 @@ def insert_door_log():
     conn.close()    # Close the connection after using it
 
     return jsonify({'status': 'success', 'message': 'Door log inserted'})
+    
+    
+#API for inserting door logs by QR code
+@app.route('/api/log_door_action', methods=['POST'])
+def log_door_action():
+    try:
+        data = request.json
+        username = data.get('username')
+        accountType = data.get('accountType')
+        position = data.get('position')
+        action_taken = data.get('action_taken')
+
+        # Check for missing fields
+        if not all([username, accountType, position, action_taken]):
+            return jsonify({'status': 'error', 'message': 'Missing required fields'}), 400
+
+        # Connect to the database
+        conn = mysql.connector.connect(
+            host="localhost",
+            user="medcabinet",
+            password="YKDCivJRUrptNK72eRyx",
+            database="medcabinet"
+        )
+        cursor = conn.cursor()
+
+        # Insert log into the door_logs table
+        query = """
+            INSERT INTO door_logs (username, accountType, position, date, time, action_taken)
+            VALUES (%s, %s, %s, CURDATE(), NOW(), %s)
+        """
+        cursor.execute(query, (username, accountType, position, action_taken))
+        conn.commit()
+
+        return jsonify({'status': 'success', 'message': 'Log inserted successfully'}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error in log_door_action: {str(e)}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+    finally:
+        cursor.close()
+        conn.close()
 
 # Initialize MySQL connection pool
 connection_pool = mysql.connector.pooling.MySQLConnectionPool(
@@ -1040,14 +1083,12 @@ def get_door_logs():
         order_by = request.args.get('order_by', 'username')
         sort = request.args.get('sort', 'ASC')
 
-        # Validate inputs to prevent SQL injection
+        # Validate inputs
         valid_columns = ['username', 'accountType', 'position', 'date', 'time', 'action_taken']
-        if order_by not in valid_columns:
-            return jsonify({"error": "Invalid 'order_by' parameter"}), 400
-        if sort not in ['ASC', 'DESC']:
-            return jsonify({"error": "Invalid 'sort' parameter"}), 400
+        if order_by not in valid_columns or sort not in ['ASC', 'DESC']:
+            return jsonify({"error": "Invalid query parameters"}), 400
 
-        # Connect to the database
+        # Connect to database
         conn = mysql.connector.connect(
             host="localhost",
             user="medcabinet",
@@ -1056,57 +1097,49 @@ def get_door_logs():
         )
         cursor = conn.cursor()
 
-        # Query the database
+        # Fetch data
         query = f"SELECT username, accountType, position, date, time, action_taken FROM door_logs ORDER BY {order_by} {sort}"
         cursor.execute(query)
         logs = cursor.fetchall()
 
-        # Format the results
         results = []
         for log in logs:
             username, accountType, position, date, time, action_taken = log
 
-            # Log the raw 'time' data
-            app.logger.info(f"Raw time data for {username}: {time}")
-
-            # Handle 'date' formatting
+            # Format the date
             date_formatted = date.strftime("%b %d, %Y") if date else "N/A"
 
-            # Handle 'time' conversion (TIME type or None)
-            time_in_seconds = None
-            if time:
-                try:
-                    time_in_seconds = time.hour * 3600 + time.minute * 60 + time.second
-                except AttributeError:
-                    # Handle edge cases if 'time' isn't a TIME type
-                    app.logger.warning(f"Unexpected time format: {time}")
-                    time_in_seconds = None
+            # Handle time formatting
+            if isinstance(time, str):  # If time is already a string
+                time_formatted = time
+            elif isinstance(time, datetime.time):  # If time is a datetime.time object
+                time_formatted = time.strftime("%H:%M:%S")
+            elif time:  # Handle other edge cases
+                time_formatted = str(time)
+            else:
+                time_formatted = "N/A"
 
-            # Add the log to the results
             results.append({
                 "username": username,
                 "accountType": accountType,
                 "position": position,
                 "date": date_formatted,
-                "time": time_in_seconds,
+                "time": time_formatted,
                 "action_taken": action_taken
             })
 
-        # Clean up resources
-        cursor.close()
-        conn.close()
-
-        # Return the results as JSON
         return jsonify(results)
 
-    except mysql.connector.Error as db_error:
-        app.logger.error(f"Database error: {db_error}")
-        return jsonify({"error": "Database error"}), 500
     except Exception as e:
-        app.logger.error(f"Unexpected error: {e}")
-        return jsonify({"error": "Internal server error"}), 500
+        app.logger.error(f"Error in /api/door_logs: {e}")
+        return jsonify({"error": "An unexpected error occurred"}), 500
 
-
+    finally:
+        try:
+            cursor.close()
+            conn.close()
+        except:
+            pass
 
 #API for fetching users to use on account settings
 @app.route('/api/accountsettings_users', methods=['GET'])
@@ -1267,46 +1300,6 @@ def verify_qrcode():
         cursor.close()
         conn.close()
         
-@app.route('/api/log_door_action', methods=['POST'])
-def log_door_action():
-    try:
-        data = request.json
-        username = data.get('username')
-        accountType = data.get('accountType')
-        position = data.get('position')
-        action_taken = data.get('action_taken')
-
-        # Check for missing fields
-        if not all([username, accountType, position, action_taken]):
-            return jsonify({'status': 'error', 'message': 'Missing required fields'}), 400
-
-        # Connect to the database
-        conn = mysql.connector.connect(
-            host="localhost",
-            user="medcabinet",
-            password="YKDCivJRUrptNK72eRyx",
-            database="medcabinet"
-        )
-        cursor = conn.cursor()
-
-        # Insert log into the door_logs table
-        query = """
-            INSERT INTO door_logs (username, accountType, position, date, time, action_taken)
-            VALUES (%s, %s, %s, CURDATE(), CURTIME(), %s)
-        """
-        cursor.execute(query, (username, accountType, position, action_taken))
-        conn.commit()
-
-        return jsonify({'status': 'success', 'message': 'Log inserted successfully'}), 200
-
-    except Exception as e:
-        app.logger.error(f"Error in log_door_action: {str(e)}")
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-    finally:
-        cursor.close()
-        conn.close()
-        
 #API for select query in validate_user_info() in System
 @app.route('/api/query', methods=['POST'])
 def query_database():
@@ -1391,11 +1384,8 @@ def soon_to_expire():
             database="medcabinet"
         )
         cursor = conn.cursor()
-        if not conn:
-            return jsonify({"error": "Database connection failed"}), 500
-        cursor = conn.cursor()
 
-        today = datetime.now().date()
+        today = datetime.datetime.now().date()
         soon_date = today + timedelta(days=31)
 
         cursor.execute(
@@ -1403,25 +1393,55 @@ def soon_to_expire():
             (soon_date, today)
         )
         medicines = cursor.fetchall()
+
+        # Log fetched data for debugging
+        print(f"Fetched medicines: {medicines}")
+
         conn.close()
 
-        return jsonify(medicines)
-    except Error as e:
-        return jsonify({"error": str(e)}), 500
+        if not medicines:
+            return jsonify({"error": "No medicines found to expire soon"}), 404
+
+        # Format the medicines data as a list of dictionaries
+        medicine_list = [
+            {"name": med[0], "type": med[1], "dosage": med[2], "expiration_date": med[3].strftime('%Y-%m-%d')}
+            for med in medicines
+        ]
+        return jsonify(medicine_list)
+
+    except mysql.connector.Error as e:
+        print(f"Database error: {e}")
+        return jsonify({"error": "Database error", "details": str(e)}), 500
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return jsonify({"error": "Unexpected error", "details": str(e)}), 500
+
 
 @app.route('/api/log_notification', methods=['POST'])
 def log_notification():
     try:
+        # Get the JSON data from the request
         data = request.json
-        medicine_id = data['medicine_id']
-        medicine_name = data['medicine_name']
-        med_type = data['med_type']
-        dosage = data['dosage']
-        expiration_date = data['expiration_date']
-        notification_date = datetime.now().date()
-        notification_time = datetime.now().time()
-        days_left = data['days_left']
 
+        # Define required fields and check if they exist in the incoming data
+        required_fields = ['medicine_id', 'medicine_name', 'med_type', 'dosage', 'expiration_date', 'days_left']
+        
+        # Check for missing fields
+        for field in required_fields:
+            if field not in data:
+                return jsonify({"error": f"Missing field: {field}"}), 400
+
+        # Ensure data types are correct
+        if not isinstance(data['medicine_id'], int):
+            return jsonify({"error": "Invalid data type for 'medicine_id'. Expected an integer."}), 400
+        
+        try:
+            # Validate the 'expiration_date' format (YYYY-MM-DD)
+            datetime.datetime.strptime(data['expiration_date'], "%Y-%m-%d")
+        except ValueError:
+            return jsonify({"error": f"Invalid 'expiration_date' format: {data['expiration_date']}. Expected 'YYYY-MM-DD'."}), 400
+
+        # Connect to the database
         conn = mysql.connector.connect(
             host="localhost",
             user="medcabinet",
@@ -1429,28 +1449,40 @@ def log_notification():
             database="medcabinet"
         )
         cursor = conn.cursor()
+
         if not conn:
             return jsonify({"error": "Database connection failed"}), 500
-        cursor = conn.cursor()
 
+        # Check if the notification for this medicine is already logged
         cursor.execute(
             "SELECT COUNT(*) FROM notification_logs WHERE medicine_id = %s",
-            (medicine_id,)
+            (data['medicine_id'],)
         )
         already_logged = cursor.fetchone()[0]
 
         if already_logged == 0:
+            # Insert new notification log into the database
             cursor.execute(
                 "INSERT INTO notification_logs (medicine_id, medicine_name, expiration_date, notification_date, notification_time, days_until_expiration) "
                 "VALUES (%s, %s, %s, %s, %s, %s)",
-                (medicine_id, medicine_name, expiration_date, notification_date, notification_time, days_left)
+                (data['medicine_id'], data['medicine_name'], data['expiration_date'], 
+                 datetime.datetime.now().date(), datetime.datetime.now().time(), data['days_left'])
             )
             conn.commit()
 
         conn.close()
+
+        # Return success response
         return jsonify({"message": "Notification logged successfully"})
-    except Error as e:
-        return jsonify({"error": str(e)}), 500
+
+    except mysql.connector.Error as e:
+        # Handle database connection errors or query issues
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+
+    except Exception as e:
+        # Catch other exceptions and provide a general error message
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
         
 @app.route('/api/withdraw_medicine', methods=['POST'])
 def withdraw_medicine():

@@ -880,7 +880,7 @@ def user_select():
             "message": "Invalid username or password"
         }), 400
 
-#API for for inserting to the door_logs table
+#API for inserting door logs manually by entering password and username
 @app.route('/api/insert_door_log', methods=['POST'])
 def insert_door_log():
     data = request.get_json()
@@ -894,14 +894,12 @@ def insert_door_log():
 
     insert_query = """
         INSERT INTO door_logs (username, accountType, position, date, time, action_taken)
-        VALUES (%s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, CURDATE(), NOW(), %s)
     """
     cursor.execute(insert_query, (
         username, 
         accountType, 
         position, 
-        datetime.datetime.now().date(), 
-        datetime.datetime.now().time(), 
         action_taken
     ))
 
@@ -911,6 +909,48 @@ def insert_door_log():
     conn.close()    # Close the connection after using it
 
     return jsonify({'status': 'success', 'message': 'Door log inserted'})
+    
+    
+#API for inserting door logs by QR code
+@app.route('/api/log_door_action', methods=['POST'])
+def log_door_action():
+    try:
+        data = request.json
+        username = data.get('username')
+        accountType = data.get('accountType')
+        position = data.get('position')
+        action_taken = data.get('action_taken')
+
+        # Check for missing fields
+        if not all([username, accountType, position, action_taken]):
+            return jsonify({'status': 'error', 'message': 'Missing required fields'}), 400
+
+        # Connect to the database
+        conn = mysql.connector.connect(
+            host="localhost",
+            user="medcabinet",
+            password="YKDCivJRUrptNK72eRyx",
+            database="medcabinet"
+        )
+        cursor = conn.cursor()
+
+        # Insert log into the door_logs table
+        query = """
+            INSERT INTO door_logs (username, accountType, position, date, time, action_taken)
+            VALUES (%s, %s, %s, CURDATE(), NOW(), %s)
+        """
+        cursor.execute(query, (username, accountType, position, action_taken))
+        conn.commit()
+
+        return jsonify({'status': 'success', 'message': 'Log inserted successfully'}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error in log_door_action: {str(e)}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+    finally:
+        cursor.close()
+        conn.close()
 
 # Initialize MySQL connection pool
 connection_pool = mysql.connector.pooling.MySQLConnectionPool(
@@ -1037,44 +1077,73 @@ def get_medicine_inventory():
     return jsonify(inventory)
 
 
-#API for for fetching door logs
 @app.route('/api/door_logs', methods=['GET'])
 def get_door_logs():
-    order_by = request.args.get('order_by', 'username')
-    sort = request.args.get('sort', 'ASC')
+    try:
+        order_by = request.args.get('order_by', 'username')
+        sort = request.args.get('sort', 'ASC')
 
-    conn = mysql.connector.connect(
-        host="localhost",
-        user="medcabinet",
-        password="YKDCivJRUrptNK72eRyx",
-        database="medcabinet"
-    )
-    cursor = conn.cursor()
-    query = f"SELECT username, accountType, position, date, time, action_taken FROM door_logs ORDER BY {order_by} {sort}"
-    cursor.execute(query)
-    logs = cursor.fetchall()
+        # Validate inputs
+        valid_columns = ['username', 'accountType', 'position', 'date', 'time', 'action_taken']
+        if order_by not in valid_columns or sort not in ['ASC', 'DESC']:
+            return jsonify({"error": "Invalid query parameters"}), 400
 
-    results = []
-    for log in logs:
-        username, accountType, position, date, time, action_taken = log
-        results.append({
-            "username": username,
-            "accountType": accountType,
-            "position": position,
-            "date": date.strftime("%b %d, %Y") if date else "N/A",
-            "time": time.total_seconds() if time else None,
-            "action_taken": action_taken
-        })
-    
-    cursor.close()
-    conn.close()
-    return jsonify(results)
+        # Connect to database
+        conn = mysql.connector.connect(
+            host="localhost",
+            user="medcabinet",
+            password="YKDCivJRUrptNK72eRyx",
+            database="medcabinet"
+        )
+        cursor = conn.cursor()
 
+        # Fetch data
+        query = f"SELECT username, accountType, position, date, time, action_taken FROM door_logs ORDER BY {order_by} {sort}"
+        cursor.execute(query)
+        logs = cursor.fetchall()
 
+        results = []
+        for log in logs:
+            username, accountType, position, date, time, action_taken = log
+
+            # Format the date
+            date_formatted = date.strftime("%b %d, %Y") if date else "N/A"
+
+            # Handle time formatting
+            if isinstance(time, str):  # If time is already a string
+                time_formatted = time
+            elif isinstance(time, datetime.time):  # If time is a datetime.time object
+                time_formatted = time.strftime("%H:%M:%S")
+            elif time:  # Handle other edge cases
+                time_formatted = str(time)
+            else:
+                time_formatted = "N/A"
+
+            results.append({
+                "username": username,
+                "accountType": accountType,
+                "position": position,
+                "date": date_formatted,
+                "time": time_formatted,
+                "action_taken": action_taken
+            })
+
+        return jsonify(results)
+
+    except Exception as e:
+        app.logger.error(f"Error in /api/door_logs: {e}")
+        return jsonify({"error": "An unexpected error occurred"}), 500
+
+    finally:
+        try:
+            cursor.close()
+            conn.close()
+        except:
+            pass
 
 #API for fetching users to use on account settings
-@app.route('/api/users', methods=['GET'])
-def get_users():
+@app.route('/api/accountsettings_users', methods=['GET'])
+def accountsettings_users():
     try:
         conn = mysql.connector.connect(
             host="localhost",
@@ -1231,43 +1300,6 @@ def verify_qrcode():
         cursor.close()
         conn.close()
         
-# Endpoint to log door activity using QR code
-@app.route('/api/log_door_action', methods=['POST'])
-def log_door_action():
-    try:
-        data = request.json
-        username = data.get('username')
-        accountType = data.get('accountType')
-        position = data.get('position')
-        action_taken = data.get('action_taken')
-
-        if not all([username, accountType, position, action_taken]):
-            return jsonify({'status': 'error', 'message': 'Missing required fields'}), 400
-
-        conn = mysql.connector.connect(
-            host="localhost",
-            user="medcabinet",
-            password="YKDCivJRUrptNK72eRyx",
-            database="medcabinet"
-        )
-        cursor = conn.cursor()
-
-        # Insert log into door_logs
-        query = """
-            INSERT INTO door_logs (username, accountType, position, date, time, action_taken)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """
-        cursor.execute(query, (username, accountType, position, datetime.datetime.now().date(), datetime.datetime.now().time(), action_taken))
-        conn.commit()
-
-        return jsonify({'status': 'success', 'message': 'Log inserted successfully'}), 200
-
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-    finally:
-        cursor.close()
-        conn.close()
-        
 #API for select query in validate_user_info() in System
 @app.route('/api/query', methods=['POST'])
 def query_database():
@@ -1293,8 +1325,8 @@ def query_database():
             conn.close()
 
 #API for selecting query in account settings - edit
-@app.route('/api/user/<username>', methods=['GET'])
-def get_user(username):
+@app.route('/api/get_users/<username>', methods=['GET'])
+def get_users(username):
     conn = mysql.connector.connect(
             host="localhost",
             user="medcabinet",
@@ -1317,7 +1349,7 @@ def get_user(username):
         })
     return jsonify({"error": "User not found"}), 404
     
-@app.route('/api/user/<username>', methods=['PUT'])
+@app.route('/api/update_user/<username>', methods=['PUT'])
 def update_user(username):
     data = request.json
     conn = mysql.connector.connect(
@@ -1352,11 +1384,8 @@ def soon_to_expire():
             database="medcabinet"
         )
         cursor = conn.cursor()
-        if not conn:
-            return jsonify({"error": "Database connection failed"}), 500
-        cursor = conn.cursor()
 
-        today = datetime.now().date()
+        today = datetime.datetime.now().date()
         soon_date = today + timedelta(days=31)
 
         cursor.execute(
@@ -1364,25 +1393,55 @@ def soon_to_expire():
             (soon_date, today)
         )
         medicines = cursor.fetchall()
+
+        # Log fetched data for debugging
+        print(f"Fetched medicines: {medicines}")
+
         conn.close()
 
-        return jsonify(medicines)
-    except Error as e:
-        return jsonify({"error": str(e)}), 500
+        if not medicines:
+            return jsonify({"error": "No medicines found to expire soon"}), 404
+
+        # Format the medicines data as a list of dictionaries
+        medicine_list = [
+            {"name": med[0], "type": med[1], "dosage": med[2], "expiration_date": med[3].strftime('%Y-%m-%d')}
+            for med in medicines
+        ]
+        return jsonify(medicine_list)
+
+    except mysql.connector.Error as e:
+        print(f"Database error: {e}")
+        return jsonify({"error": "Database error", "details": str(e)}), 500
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return jsonify({"error": "Unexpected error", "details": str(e)}), 500
+
 
 @app.route('/api/log_notification', methods=['POST'])
 def log_notification():
     try:
+        # Get the JSON data from the request
         data = request.json
-        medicine_id = data['medicine_id']
-        medicine_name = data['medicine_name']
-        med_type = data['med_type']
-        dosage = data['dosage']
-        expiration_date = data['expiration_date']
-        notification_date = datetime.now().date()
-        notification_time = datetime.now().time()
-        days_left = data['days_left']
 
+        # Define required fields and check if they exist in the incoming data
+        required_fields = ['medicine_id', 'medicine_name', 'med_type', 'dosage', 'expiration_date', 'days_left']
+        
+        # Check for missing fields
+        for field in required_fields:
+            if field not in data:
+                return jsonify({"error": f"Missing field: {field}"}), 400
+
+        # Ensure data types are correct
+        if not isinstance(data['medicine_id'], int):
+            return jsonify({"error": "Invalid data type for 'medicine_id'. Expected an integer."}), 400
+        
+        try:
+            # Validate the 'expiration_date' format (YYYY-MM-DD)
+            datetime.datetime.strptime(data['expiration_date'], "%Y-%m-%d")
+        except ValueError:
+            return jsonify({"error": f"Invalid 'expiration_date' format: {data['expiration_date']}. Expected 'YYYY-MM-DD'."}), 400
+
+        # Connect to the database
         conn = mysql.connector.connect(
             host="localhost",
             user="medcabinet",
@@ -1390,28 +1449,82 @@ def log_notification():
             database="medcabinet"
         )
         cursor = conn.cursor()
+
         if not conn:
             return jsonify({"error": "Database connection failed"}), 500
-        cursor = conn.cursor()
 
+        # Check if the notification for this medicine is already logged
         cursor.execute(
             "SELECT COUNT(*) FROM notification_logs WHERE medicine_id = %s",
-            (medicine_id,)
+            (data['medicine_id'],)
         )
         already_logged = cursor.fetchone()[0]
 
         if already_logged == 0:
+            # Insert new notification log into the database
             cursor.execute(
                 "INSERT INTO notification_logs (medicine_id, medicine_name, expiration_date, notification_date, notification_time, days_until_expiration) "
                 "VALUES (%s, %s, %s, %s, %s, %s)",
-                (medicine_id, medicine_name, expiration_date, notification_date, notification_time, days_left)
+                (data['medicine_id'], data['medicine_name'], data['expiration_date'], 
+                 datetime.datetime.now().date(), datetime.datetime.now().time(), data['days_left'])
             )
             conn.commit()
 
         conn.close()
+
+        # Return success response
         return jsonify({"message": "Notification logged successfully"})
-    except Error as e:
-        return jsonify({"error": str(e)}), 500
+
+    except mysql.connector.Error as e:
+        # Handle database connection errors or query issues
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+
+    except Exception as e:
+        # Catch other exceptions and provide a general error message
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+        
+@app.route('/api/withdraw_medicine', methods=['POST'])
+def withdraw_medicine():
+    data = request.json
+    qr_code = data.get('qr_code')
+
+    if not qr_code:
+        return jsonify({'error': 'QR code is required'}), 400
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)  # Dictionary cursor for easier JSON conversion
+
+        # Fetch medicine by QR code
+        cursor.execute("SELECT name, quantity, type, unit FROM medicine_inventory WHERE qr_code = %s", (qr_code,))
+        medicine = cursor.fetchone()
+
+        if not medicine:
+            return jsonify({'error': 'QR code not found'}), 404
+
+        # Update quantity if requested
+        decrement = data.get('decrement', 0)
+        if decrement:
+            if medicine['quantity'] > 0:
+                new_quantity = medicine['quantity'] - decrement
+                if new_quantity > 0:
+                    cursor.execute("UPDATE medicine_inventory SET quantity = %s WHERE qr_code = %s", (new_quantity, qr_code))
+                else:
+                    cursor.execute("DELETE FROM medicine_inventory WHERE qr_code = %s", (qr_code,))
+                conn.commit()
+                return jsonify({'message': 'Medicine updated', 'quantity': max(0, new_quantity)}), 200
+            return jsonify({'error': 'Out of stock'}), 400
+
+        # Return medicine details
+        return jsonify(medicine), 200
+
+    except mysql.connector.Error as err:
+        return jsonify({'error': f"Database error: {err}"}), 500
+
+    finally:
+        cursor.close()
+        conn.close()
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)
