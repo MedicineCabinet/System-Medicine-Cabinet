@@ -461,7 +461,7 @@ def deposit_window(permission):
 
     # Unit Combobox
     tk.Label(input_frame, text="Dosage: ", font=("Arial", 16)).grid(row=2, column=0, padx=(30, 20), pady=10, sticky='e')
-    dosage_spinbox= tk.Spinbox(input_frame, from_=0, to=1000, font=("Arial", 16), width=5)
+    dosage_spinbox= tk.Spinbox(input_frame, from_=0, to=9999, font=("Arial", 16), width=5)
     dosage_spinbox.grid(row=2, column=1, padx=(10, 10), pady=10, sticky='ew')
     dosage_spinbox.delete(0, tk.END)
 
@@ -490,7 +490,7 @@ def deposit_window(permission):
     menu.config(font=("Arial", 18), activebackground="blue") 
 
     tk.Label(input_frame, text="Quantity: ", font=("Arial", 16)).grid(row=4, column=0, padx=(30, 20), pady=10, sticky='e')
-    quantity_spinbox = tk.Spinbox(input_frame, from_=0, to=100, font=("Arial", 16), width=20)
+    quantity_spinbox = tk.Spinbox(input_frame, from_=0, to=20, font=("Arial", 16), width=20)
     quantity_spinbox.grid(row=4, column=1, padx=10, pady=(10, 1), sticky='ew')
     quantity_spinbox.delete(0, tk.END)
 
