@@ -1257,12 +1257,12 @@ def show_notification_table():
 
     # Custom scrollbar for the treeview
     tree_scroll = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL)
-    tree_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+    tree_scroll.pack(side=tk.LEFT, fill=tk.Y)
 
     table_style()
 
     # Create the Treeview to display the notifications
-    columns = ("Medicine Name", "Type", "Dosage", "Expiration Date", "Days Until Exp")
+    columns = ("Brand Name", "Generic Name", "Dosage", "Expiration Date", "Days Until Exp")
     tree_notif = ttk.Treeview(tree_frame, columns=columns, show="headings", height=10)
 
     # Define columns
