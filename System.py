@@ -1238,6 +1238,7 @@ def show_notification_table():
     table_style()
     global tree_notif
     notify = NotificationManager(root, asap=False)  # NotificationManager instance
+    notify.start_checking()  # Automatically check and pop-up notifications
 
     # Fetch data from API
     medicines = notify.check_soon_to_expire()  # Modify to return fetched data

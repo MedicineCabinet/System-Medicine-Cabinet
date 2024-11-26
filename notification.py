@@ -5,6 +5,8 @@ import tkinter as tk
 import threading
 import time  # For simulation purposes
 
+motif_color = '#42a7f5'
+
 class NotificationManager:
     def __init__(self, root, asap=False):
         self.root = root
@@ -19,14 +21,24 @@ class NotificationManager:
         self.root.after(0, self._create_loading_window, message)
 
     def _create_loading_window(self, message):
-        """Internal method to safely create the loading window."""
-        self.loading_window = tk.Toplevel(self.root)
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+
+        # Calculate position to center the window
+        position_top = int(screen_height / 2 - 600 / 2)
+        position_right = int(screen_width / 2 - 800 / 2)
+
+        # Create the loading window
+        self.loading_window = tk.Toplevel(self.root, bg=motif_color)
         self.loading_window.title("Loading")
-        self.loading_window.geometry("300x100")
-        self.loading_window.resizable(False, False)
+        self.loading_window.geometry(f"{800}x{600}+{position_right}+{position_top}")  # Set size and position
+        self.loading_window.resizable(False, False)  # Disable resizing
         self.loading_window.transient(self.root)  # Keep on top of the main window
         self.loading_window.grab_set()  # Block interaction with the main window
-        tk.Label(self.loading_window, text=message, font=("Arial", 14)).pack(pady=20)
+        self.loading_window.overrideredirect(True)  # Remove the title bar
+
+        # Add the message label to the window
+        tk.Label(self.loading_window, text=message, font=("Arial", 18, "bold"), fg='white', bg=motif_color, relief='sunken', bd=5, anchor='center').pack(pady=20, fill='both')
 
     def close_loading(self):
         """Close the loading Toplevel."""
