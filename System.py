@@ -519,10 +519,9 @@ def deposit_window(permission):
         expiration_date = expiration_date_entry.get_date()
         keyboard.hide_keyboard()
 
-        deposit = MedicineDeposit(name, type_,  quantity, unit, expiration_date, dosage, root, root, content_frame, Username, Password, arduino, action="unlock", yes_callback=lambda: (print("Calling deposit_window with 'deposit_again'"), deposit_window(permission), deposit_Toplevel.destroy()))
+        deposit = MedicineDeposit(name, type_,  quantity, unit, expiration_date, dosage, root, root, content_frame, Username, Password, arduino, action="unlock", yes_callback=lambda: (print("Calling deposit_window with 'deposit_again'"), deposit_Toplevel.destroy()))
 
         if deposit.validate_inputs():
-            deposit_Toplevel.destroy()
             message_box = CustomMessageBox(root=root,
                              title="Deposit Medicine",
                              message=f"Adding Medicine:\n\nGeneric Name: {deposit.generic_name}\nBrand Name: {deposit.name}\nQuantity: {deposit.quantity}\nUnit: {deposit.unit}\nDosage: {deposit.dosage_for_db}\nExpiration Date: {deposit.expiration_date}\n\nClick 'Yes' to confirm medicine.",
@@ -541,7 +540,7 @@ def deposit_window(permission):
     cancel_button.grid(row=7, column=0, padx=(40, 60), pady=(50, 0))
 
     if permission == 'deposit_again':
-        cancel_button.config(command=lambda: (LockUnlock(root, Username, Password, arduino, "lock", "medicine inventory", container=root), deposit_Toplevel.destroy()))
+        cancel_button.config(command=lambda: (LockUnlock(root, Username, Password, arduino, "lock", "medicine inventory", container=root, type='deposit'), deposit_Toplevel.destroy()))
     else:
         cancel_button.config(command=lambda: (show_medicine_supply(), deposit_Toplevel.destroy()))
 
@@ -867,7 +866,6 @@ def show_medicine_supply():
     button_frame.columnconfigure(1, weight=1)
     button_frame.columnconfigure(2, weight=1)
     button_frame.columnconfigure(3, weight=1)
-
 
     widthdraw_icon = ImageTk.PhotoImage(Image.open(os.path.join(os.path.dirname(__file__), 'images', 'minus_icon.png')).resize((25, 25), Image.LANCZOS))
     withdraw_button = tk.Button(button_frame, text="Withdraw", padx=20, pady=10, font=('Arial', 18), bg=motif_color, fg="white", relief="raised", bd=4, compound=tk.LEFT, image=widthdraw_icon, command=lambda: LockUnlock(root, Username, Password, arduino, "unlock", "medicine inventory", container=root, type="withdraw"))
@@ -2268,9 +2266,12 @@ class LockUnlock:
         elif self.action == 'unlock':
             title_label.config(text="Unlock")
 
-        close_button = tk.Button(title_frame, image=self.close_img, command=self._exit_action, bg=motif_color, relief=tk.FLAT, bd=0)
-        close_button.image = self.close_img  # Keep a reference to avoid garbage collection
-        close_button.pack(side=tk.RIGHT, padx=(0, 10), pady=(0, 5))
+        self.close_button = tk.Button(title_frame, image=self.close_img, command=lambda: (self._exit_action(), self.window.destroy()), bg=motif_color, relief=tk.FLAT, bd=0, state='disabled')
+        self.close_button.image = self.close_img  # Keep a reference to avoid garbage collection
+        self.close_button.pack(side=tk.RIGHT, padx=(0, 10), pady=(0, 5))
+
+        if self.action == "unlock" and self.type == "withdraw":
+            self.close_button.config(state='normal')
 
         # Create a Notebook widget
         notebook = ttk.Notebook(self.window)
@@ -2308,7 +2309,7 @@ class LockUnlock:
         if self.action == 'automatic_logout':
             manual_instruction = tk.Label(tab1, text="Please enter your username and password to lock the door now.", font=('Arial', 18))
             title_frame.config(bg='red')
-            close_button.config(bg='red')
+            self.close_button.config(bg='red')
             title_label.config(bg='red')
         manual_instruction.pack(pady=10, anchor='center')
 
@@ -3209,7 +3210,7 @@ class MedicineDeposit:
         self.message_box = CustomMessageBox(
             root=root,
             title="Medicine Deposited",
-            message=f"Adding medicine: '{self.name.capitalize()}'\nPlease attach the printed QR Code with Exp. Date to the medicine.\n\nClick 'Yes' to add more medicine.\nClick 'Reprint' if printing of QR Code with Exp failed.\nClick 'No' if you dont want to add more medicine.",
+            message=f"Adding medicine: '{self.name.capitalize()}'\nPlease attach the printed QR Code with Exp. Date to the medicine.\n\nClick 'Add More' to add more medicine.\nClick 'Reprint' if printing of QR Code with Exp failed.\nClick 'No' if you dont want to add more medicine.",
             icon_path=qr_code_filepath,
             no_callback=lambda: (LockUnlock(root, self.Username, self.Password, self.arduino,"unlock", "medicine inventory", type="deposit"), self.message_box.destroy()),
             yes_callback=lambda: (self._yes_action(), self.message_box.destroy(), deposit_window(permission='deposit_again')),
@@ -3424,7 +3425,7 @@ class CustomMessageBox:
 
 #-----------------------------------------------MAIN------------------------------------------------------
 def main():
-    global root, arduino, container
+    global root, container, arduino
     root = tk.Tk()
     root.resizable(width=False, height=False)
     # root.overrideredirect(True)
@@ -3435,6 +3436,8 @@ def main():
     container.pack(fill="both", expand=True)
     container.grid_rowconfigure(0, weight=1)
     container.grid_columnconfigure(0, weight=1)
+
+    NotificationManager(root)
 
     global login_frame, loading_frame
 
@@ -3451,7 +3454,7 @@ def main():
     def connect_to_arduino():
         global arduino
         try:
-            arduino = serial.Serial('COM7', 9600)  # Port of the Arduino
+            arduino = serial.Serial('COM5', 9600)  # Port of the Arduino
             time.sleep(2)  # Wait for the connection to establish
             print("\nSerial connection established")
             # Once connected, proceed to show login_frame
