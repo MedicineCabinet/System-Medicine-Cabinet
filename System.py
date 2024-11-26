@@ -2541,81 +2541,94 @@ class LockUnlock:
                         username = user_data['username']
                         accountType = user_data['accountType']
                         position = user_data['position']
+                        password = user_data['password']
 
-                        action_taken = 'Lock' if self.action in ['successful_close', 'automatic_logout', 'Lock', 'lock'] else 'Unlock'
+                        if Username == username and Password == password: 
 
-                        # Log door action with the Flask API
-                        log_response = requests.post(
-                            "https://emc-san-mateo.com/api/log_door_action",  # Flask API endpoint
-                            json={
-                                "username": username,
-                                "accountType": accountType,
-                                "position": position,
-                                "action_taken": action_taken
-                            }
-                        )
-                        log_data = log_response.json()
+                            action_taken = 'Lock' if self.action in ['successful_close', 'automatic_logout', 'Lock', 'lock'] else 'Unlock'  
 
-                        if log_response.status_code == 200:
-                            if self.action == "unlock" and self.type == "deposit":
-                                self.window.destroy()
-                                self._unlock_door()
-                                message_box = CustomMessageBox(
-                                    root=self.keyboardFrame,
-                                    title="Success",
-                                    message="Door is now unlocked.\nPlease insert your medicine inside the Cabinet.\nPress ok if your finished inserting medicine to proceed on locking the door.",
-                                    icon_path=os.path.join(os.path.dirname(__file__), 'images', 'unlock_icon.png'),
-                                    ok_callback=lambda: (message_box.destroy(), self._lock_door()),
-                                    close_state=True
-                                )
-                            elif self.type== "withdraw" and self.action == "unlock":
-                                self._unlock_door()
-                                self.window.destroy()
-                                message_box = CustomMessageBox(
-                                    root=self.keyboardFrame,
-                                    title="Success",
-                                    message="Door is now unlocked\nYou may now proceed to withdraw medicine.",
-                                    icon_path=os.path.join(os.path.dirname(__file__), 'images', 'unlock_icon.png'),
-                                    ok_callback= lambda: (message_box.destroy(), QRCodeScanner(self.keyboardFrame, self.user_Username, self.user_Password, "https://emc-san-mateo.com/api/withdraw_medicine", 'lock'), self.window.destroy()),
-                                    close_state=True
-                                )
-                            elif self.action == "successful_close":
-                                self.arduino.write(b'lock\n')
-                                with open(file_path, "w") as file:
-                                    file.write("Locked")
-                                self.window.destroy()
-                                message_box = CustomMessageBox(
-                                    root=root,
-                                    title="Success",
-                                    message="Door is now locked.",
-                                    icon_path=os.path.join(os.path.dirname(__file__), 'images', 'lock_icon.png'),
-                                    ok_callback=lambda: message_box.destroy()
-                                )
-                            elif self.action == "lock":
-                                self.window.destroy()
-                                self._lock_door()
+                            # Log door action with the Flask API
+                            log_response = requests.post(
+                                "https://emc-san-mateo.com/api/log_door_action",  # Flask API endpoint
+                                json={
+                                    "username": username,
+                                    "accountType": accountType,
+                                    "position": position,
+                                    "action_taken": action_taken
+                                }
+                            )
+                            log_data = log_response.json()
 
-                            elif self.action == 'automatic_logout':
-                                with open(file_path, "w") as file:
-                                    file.write("Locked")
-                                self.window.destroy()
-                                self.arduino.write(b'lock\n')
-                                self.exit_callback()
-                                
-                            if self.action == "unlock" and self.type == "disable":
-                                self.window.destroy()
-                                self._unlock_door()
-                                message_box = CustomMessageBox(
-                                    root=self.keyboardFrame,
-                                    title="Disable Lock",
-                                    message="Lock functionality is now disabled temporarily",
-                                    icon_path=os.path.join(os.path.dirname(__file__), 'images', 'unlock_icon.png'),
-                                    ok_callback=lambda: (message_box.destroy(), logout('disable-lock-unlock')),
-                                    not_allow_idle=True 
-                                )
+                            if log_response.status_code == 200:
+                                if self.action == "unlock" and self.type == "deposit":
+                                    self.window.destroy()
+                                    self._unlock_door()
+                                    message_box = CustomMessageBox(
+                                        root=self.keyboardFrame,
+                                        title="Success",
+                                        message="Door is now unlocked.\nPlease insert your medicine inside the Cabinet.\nPress ok if your finished inserting medicine to proceed on locking the door.",
+                                        icon_path=os.path.join(os.path.dirname(__file__), 'images', 'unlock_icon.png'),
+                                        ok_callback=lambda: (message_box.destroy(), self._lock_door()),
+                                        close_state=True
+                                    )
+                                elif self.type== "withdraw" and self.action == "unlock":
+                                    self._unlock_door()
+                                    self.window.destroy()
+                                    message_box = CustomMessageBox(
+                                        root=self.keyboardFrame,
+                                        title="Success",
+                                        message="Door is now unlocked\nYou may now proceed to withdraw medicine.",
+                                        icon_path=os.path.join(os.path.dirname(__file__), 'images', 'unlock_icon.png'),
+                                        ok_callback= lambda: (message_box.destroy(), QRCodeScanner(self.keyboardFrame, self.user_Username, self.user_Password, "https://emc-san-mateo.com/api/withdraw_medicine", 'lock'), self.window.destroy()),
+                                        close_state=True
+                                    )
+                                elif self.action == "successful_close":
+                                    self.arduino.write(b'lock\n')
+                                    with open(file_path, "w") as file:
+                                        file.write("Locked")
+                                    self.window.destroy()
+                                    message_box = CustomMessageBox(
+                                        root=root,
+                                        title="Success",
+                                        message="Door is now locked.",
+                                        icon_path=os.path.join(os.path.dirname(__file__), 'images', 'lock_icon.png'),
+                                        ok_callback=lambda: message_box.destroy()
+                                    )
+                                elif self.action == "lock":
+                                    self.window.destroy()
+                                    self._lock_door()
+
+                                elif self.action == 'automatic_logout':
+                                    with open(file_path, "w") as file:
+                                        file.write("Locked")
+                                    self.window.destroy()
+                                    self.arduino.write(b'lock\n')
+                                    self.exit_callback()
+                                    
+                                if self.action == "unlock" and self.type == "disable":
+                                    self.window.destroy()
+                                    self._unlock_door()
+                                    message_box = CustomMessageBox(
+                                        root=self.keyboardFrame,
+                                        title="Disable Lock",
+                                        message="Lock functionality is now disabled temporarily",
+                                        icon_path=os.path.join(os.path.dirname(__file__), 'images', 'unlock_icon.png'),
+                                        ok_callback=lambda: (message_box.destroy(), logout('disable-lock-unlock')),
+                                        not_allow_idle=True 
+                                    )
+                            else:
+                                # Handle logging error
+                                messagebox.showerror("Error", log_data['message'])
                         else:
-                            # Handle logging error
-                            messagebox.showerror("Error", log_data['message'])
+                            # If credentials are invalid, show an error message
+                            message_box = CustomMessageBox(
+                                root=self.keyboardFrame,
+                                title="Error",
+                                message="Invalid QR Code",
+                                color="red",  # Background color for warning
+                                icon_path=os.path.join(os.path.dirname(__file__), 'images', 'warningGrey_icon.png')  # Path to your icon
+                            )
+
 
                     else:
                         # Handle QR code verification error
@@ -3438,7 +3451,7 @@ def main():
     def connect_to_arduino():
         global arduino
         try:
-            arduino = serial.Serial('COM5', 9600)  # Port of the Arduino
+            arduino = serial.Serial('COM7', 9600)  # Port of the Arduino
             time.sleep(2)  # Wait for the connection to establish
             print("\nSerial connection established")
             # Once connected, proceed to show login_frame
