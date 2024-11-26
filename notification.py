@@ -2,14 +2,46 @@ import requests
 import datetime
 import os
 import tkinter as tk
+import threading
+import time  # For simulation purposes
 
 class NotificationManager:
     def __init__(self, root, asap=False):
         self.root = root
         self.api_url = "https://emc-san-mateo.com/api"  # Base URL for Flask API
         self.asap = asap
+        self.loading_window = None  # Initialize the attribute in the constructor
+        self.show_loading()
+
+    def show_loading(self, message="Loading, please wait..."):
+        """Display a loading Toplevel."""
+        # Ensure GUI updates are on the main thread
+        self.root.after(0, self._create_loading_window, message)
+
+    def _create_loading_window(self, message):
+        """Internal method to safely create the loading window."""
+        self.loading_window = tk.Toplevel(self.root)
+        self.loading_window.title("Loading")
+        self.loading_window.geometry("300x100")
+        self.loading_window.resizable(False, False)
+        self.loading_window.transient(self.root)  # Keep on top of the main window
+        self.loading_window.grab_set()  # Block interaction with the main window
+        tk.Label(self.loading_window, text=message, font=("Arial", 14)).pack(pady=20)
+
+    def close_loading(self):
+        """Close the loading Toplevel."""
+        if self.loading_window:
+            # Ensure this happens on the main thread
+            self.root.after(0, self._destroy_loading_window)
+
+    def _destroy_loading_window(self):
+        """Internal method to safely destroy the loading window."""
+        if self.loading_window:
+            self.loading_window.destroy()
+            self.loading_window = None
 
     def check_soon_to_expire(self):
+        """Method to fetch medicines soon to expire and log notifications."""
         try:
             response = requests.get(f"{self.api_url}/soon_to_expire")
             response.raise_for_status()  # Raise an error for non-200 responses
@@ -21,18 +53,21 @@ class NotificationManager:
                 med_name = med["name"]
                 med_type = med["type"]
                 dosage = med["dosage"]
-                exp_date = med["expiration_date"]  # Assuming this is the expiration date string in 'YYYY-MM-DD' format
+                exp_date = med["expiration_date"]
 
-                # Check if expiration date is valid
                 try:
-                    days_left = (datetime.datetime.strptime(exp_date, "%Y-%m-%d").date() - datetime.datetime.now().date()).days
+                    med["days_left"] = (
+                        datetime.datetime.strptime(exp_date, "%Y-%m-%d").date() - 
+                        datetime.datetime.now().date()
+                    ).days
+                    days_left = med["days_left"]
                 except ValueError:
                     print(f"Invalid expiration date format for {med_name}: {exp_date}")
-                    continue  # Skip this medicine if the date format is invalid
+                    continue
 
-                # Log the notification via API
+                # Log the notification (this could involve some UI update or API call)
                 self.log_notification({
-                    "medicine_id": med_id,  # Replace with actual ID from the API if available
+                    "medicine_id": med_id,
                     "medicine_name": med_name,
                     "med_type": med_type,
                     "dosage": dosage,
@@ -42,29 +77,17 @@ class NotificationManager:
 
                 if self.asap:
                     self.create_notification_popup(med_name, med_type, dosage, exp_date, days_left, notification_count)
+            
+            # Close the loading window after the entire process is complete
+            self.close_loading()
+            return medicines
+
         except requests.RequestException as e:
             print(f"Error fetching data from API: {e}")
-
-    def create_notification_popup(self, medicine_name, med_type, dosage, expiration_date, days_left, notification_count):
-        try:
-            from System import CustomMessageBox
-            from System import root
-            message_box = CustomMessageBox(
-                root=root,
-                title=f'Notification ({notification_count})',
-                message=(
-                    f'Expiring medicine:\n'
-                    f'{medicine_name} - {med_type} - {dosage}\n'
-                    f'Expiration Date: {expiration_date}\n'
-                    f'Days left: {days_left}'
-                ),
-                color='red',
-                icon_path=os.path.join(os.path.dirname(__file__), 'images', 'warningGrey_icon.png')
-            )
-        except Exception as e:
-            print(f"Error displaying notification popup: {e}")
+            self.close_loading()  # Ensure loading window is closed on error
 
     def log_notification(self, data):
+        """Log the notification data."""
         # Ensure required fields are present
         required_fields = ['medicine_id', 'medicine_name', 'med_type', 'dosage', 'expiration_date', 'days_left']
         for field in required_fields:
@@ -89,6 +112,27 @@ class NotificationManager:
             print(f"Notification logged successfully. {data}")
         except requests.RequestException as e:
             print(f"Error logging notification: {e}: {response.text}")
-            if e.response:
-                print(f"Response content: {e.response.text}")  # Print the response content for more info
 
+    def create_notification_popup(self, medicine_name, med_type, dosage, expiration_date, days_left, notification_count):
+        try:
+            from System import CustomMessageBox
+            from System import root
+            message_box = CustomMessageBox(
+                root=root,
+                title=f'Notification ({notification_count})',
+                message=(
+                    f'Expiring medicine:\n'
+                    f'{medicine_name} - {med_type} - {dosage}\n'
+                    f'Expiration Date: {expiration_date}\n'
+                    f'Days left: {days_left}'
+                ),
+                color='red',
+                icon_path=os.path.join(os.path.dirname(__file__), 'images', 'warningGrey_icon.png')
+            )
+        except Exception as e:
+            print(f"Error displaying notification popup: {e}")
+
+    def start_checking(self):
+        """Start checking for soon-to-expire medicines in a separate thread."""
+        # Run the check_soon_to_expire method in a background thread to avoid blocking the UI
+        threading.Thread(target=self.check_soon_to_expire, daemon=True).start()

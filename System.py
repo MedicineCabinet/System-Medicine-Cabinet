@@ -69,7 +69,7 @@ def authenticate_user(username, password):
         update_datetime()
         # Check for soon-to-expire medicines on home page load
         notification_manager = NotificationManager(root, asap=True)
-        notification_manager.check_soon_to_expire()  # Automatically check and pop-up notifications
+        notification_manager.start_checking()  # Automatically check and pop-up notifications
     else:
         message_box = CustomMessageBox(
             root=login_frame,
@@ -1237,8 +1237,10 @@ def show_notification_table():
     # Apply table style
     table_style()
     global tree_notif
-    notify = NotificationManager(root, asap=False)
-    notify.check_soon_to_expire()
+    notify = NotificationManager(root, asap=False)  # NotificationManager instance
+
+    # Fetch data from API
+    medicines = notify.check_soon_to_expire()  # Modify to return fetched data
 
     """Display the notification logs table in the Treeview."""
     clear_frame()
@@ -1258,8 +1260,8 @@ def show_notification_table():
 
     table_style()
 
-     # Create the Treeview to display the door logs
-    columns = ("Medicine Name", "Expiration Date", "Notification Time", "Days Until Exp")
+    # Create the Treeview to display the notifications
+    columns = ("Medicine Name", "Type", "Dosage", "Expiration Date", "Days Until Exp")
     tree_notif = ttk.Treeview(tree_frame, columns=columns, show="headings", height=10)
 
     # Define columns
@@ -1269,7 +1271,7 @@ def show_notification_table():
     for col in columns:
         tree_notif.heading(col, text=col.capitalize())
 
-    # Column configurations    for col in columns:
+    # Column configurations
     for col in columns:
         tree_notif.column(col, anchor=tk.CENTER, width=100)
 
@@ -1277,13 +1279,32 @@ def show_notification_table():
     tree_notif.tag_configure('oddrow', background="white")
     tree_notif.tag_configure('evenrow', background="#f2f2f2")
 
+    # Populate Treeview with data
+    if medicines:  # Check if data is not empty
+        for index, med in enumerate(medicines):
+            med_name = med.get("name", "Unknown")
+            med_type = med.get("type", "Unknown")
+            dosage = med.get("dosage", "Unknown")
+            expiration_date = med.get("expiration_date", "N/A")
+            days_left = med.get("days_left", "N/A")
+
+            tag = 'evenrow' if index % 2 == 0 else 'oddrow'
+            tree_notif.insert(
+                "", "end", 
+                values=(med_name, med_type, dosage, expiration_date, days_left), 
+                tags=(tag,)
+            )
+
     # Mouse wheel support
     def on_mouse_wheel(event):
-        tree_notif.yview_scroll(int(-1*(event.delta/120)), "units")
+        tree_notif.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
+    # Bindings
     tree_notif.bind("<<TreeviewSelect>>", on_row_select)
-
     tree_notif.bind_all("<MouseWheel>", on_mouse_wheel)
+
+    tree_notif.pack(fill="both", expand=True, padx=10, pady=10)
+    tree_scroll.config(command=tree_notif.yview)
 
     tree_notif.pack(side=tk.LEFT, fill="both", expand=True)
 
@@ -3437,7 +3458,6 @@ def main():
     container.grid_rowconfigure(0, weight=1)
     container.grid_columnconfigure(0, weight=1)
 
-    NotificationManager(root)
 
     global login_frame, loading_frame
 
