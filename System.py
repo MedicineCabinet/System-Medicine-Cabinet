@@ -68,7 +68,7 @@ def authenticate_user(username, password):
         configure_sidebar(user_role)
         update_datetime()
         # Check for soon-to-expire medicines on home page load
-        notification_manager = NotificationManager(root, asap=True)
+        notification_manager = NotificationManager(root, asap=True, log=True)
         notification_manager.start_checking()  # Automatically check and pop-up notifications
     else:
         message_box = CustomMessageBox(
@@ -77,7 +77,6 @@ def authenticate_user(username, password):
             message="Invalid username or password.",
             color="red",  # Background color for warning
             icon_path=os.path.join(os.path.dirname(__file__), 'images', 'warningGrey_icon.png'),  # Path to your icon
-            sound_file="sounds/invalidLogin.mp3",
             page='Login',
             not_allow_idle=True
         )
@@ -1240,14 +1239,12 @@ def show_notification_table():
     notify = NotificationManager(root, asap=False)  # NotificationManager instance
     notify.start_checking()  # Automatically check and pop-up notifications
 
-    # Fetch data from API
-    medicines = notify.check_soon_to_expire()  # Modify to return fetched data
-
-    """Display the notification logs table in the Treeview."""
     clear_frame()
     reset_button_colors()
     notification_button.config(bg=active_bg_color, fg=active_fg_color)
 
+    # Fetch data from API
+    medicines = notify.check_soon_to_expire()  # Modify to return fetched data 
     # Add a header
     tk.Label(content_frame, text="NOTIFICATION LOGS", bg=motif_color, fg="white",
              font=('Arial', 25, 'bold'), height=2, relief='groove', bd=1).pack(fill='x')
@@ -1263,7 +1260,7 @@ def show_notification_table():
 
     # Create the Treeview to display the notifications
     columns = ("Brand Name", "Generic Name", "Dosage", "Expiration Date", "Days Until Exp")
-    tree_notif = ttk.Treeview(tree_frame, columns=columns, show="headings", height=10)
+    tree_notif = ttk.Treeview(tree_frame, columns=columns, show="headings", height=10, yscrollcommand=tree_scroll.set)
 
     # Define columns
     tree_scroll.config(command=tree_notif.yview)
@@ -1308,6 +1305,9 @@ def show_notification_table():
     tree_scroll.config(command=tree_notif.yview)
 
     tree_notif.pack(side=tk.LEFT, fill="both", expand=True)
+
+    refresh_but = tk.Button(content_frame, bg=motif_color, fg='white', text='Refresh', font=('Arial', 18), command=lambda: NotificationManager(root, asap=False, log=True), padx=10, pady=10, relief='raised')
+    refresh_but.pack(anchor='e', padx=10, pady=5)
 
 #------------------------------------------------------ACCOUNT SETTINGS FRAME----------------------------------------------------------------------
 def show_account_setting():
@@ -2497,8 +2497,7 @@ class LockUnlock:
                 title="Error",
                 message="Invalid username or password.",
                 color="red",  # Background color for warning
-                icon_path=os.path.join(os.path.dirname(__file__), 'images', 'warningGrey_icon.png'),  # Path to your icon
-                sound_file="sounds/invalidLogin.mp3"
+                icon_path=os.path.join(os.path.dirname(__file__), 'images', 'warningGrey_icon.png')  # Path to your icon
             )
 
     def _insert_door_log(self, userName, accountType, position, action_taken):
@@ -3000,6 +2999,15 @@ class MedicineDeposit:
                     icon_path=os.path.join(os.path.dirname(__file__), 'images', 'warningGrey_icon.png')
                 )
                 return False
+            if self.quantity > 50:
+                message_box = CustomMessageBox(
+                    root=self.root,
+                    title='Error',
+                    color='red',
+                    message="Quantity must not be greater than 50!.",
+                    icon_path=os.path.join(os.path.dirname(__file__), 'images', 'warningGrey_icon.png')
+                )
+                return False
         except ValueError:
             message_box = CustomMessageBox(
                 root=self.root,
@@ -3120,6 +3128,7 @@ class MedicineDeposit:
                         # If the unit is 'syrup', repeat printing based on quantity
                         if self.unit == 'syrup':
                             for _ in range(self.quantity):
+                                reset_timer()
                                 printer.write(img_data)
                                 printer.flush()
                                 # Optional cut command if printer supports it
@@ -3511,7 +3520,9 @@ def main():
     # Initial internet check before showing any UI
     if not check_internet():
         wifi_window = WiFiConnectUI(root)
+        login_frame.tkraise()
         root.wait_window(wifi_window)  # Pause the main UI until WiFi window is closed
+        login_frame.tkraise()
 
     # Start periodic internet checking
     root.after(CHECK_INTERVAL, lambda: periodic_internet_check(root))

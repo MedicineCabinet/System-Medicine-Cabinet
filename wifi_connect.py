@@ -106,7 +106,7 @@ class WiFiConnectUI(tk.Toplevel):
         self.wifi_label_status = tk.Label(UI_frame, text="No Wifi Connected", font=('Arial', 14), fg='red')
         self.wifi_label_status.grid(row=5, column=0, pady=10)
 
-        self.proceed_login = tk.Button(self, text="Proceed to Login", state='disabled', font=("Arial", 14, 'bold'), fg='white', bg='#2c3e50', padx=30, pady=10, command=self.destroy)
+        self.proceed_login = tk.Button(self, text="Proceed", state='disabled', font=("Arial", 14, 'bold'), fg='white', bg='#2c3e50', padx=30, pady=10, command=self.destroy)
         self.proceed_login.pack(anchor='center', pady=20)
 
         self.password_entry.bind("<FocusIn>", lambda e: self.show_on_screen_keyboard(self.password_entry))
@@ -168,6 +168,7 @@ class WiFiConnectUI(tk.Toplevel):
                 title="SUCCESS",
                 message="You have successfully connected to the Internet.",
                 icon_path=os.path.join(os.path.dirname(__file__), 'images', 'connected_icon.png'),
+                not_allow_idle=True
             )
 
         else:

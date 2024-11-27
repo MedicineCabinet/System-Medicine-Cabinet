@@ -8,49 +8,49 @@ import time  # For simulation purposes
 motif_color = '#42a7f5'
 
 class NotificationManager:
-    def __init__(self, root, asap=False):
+    def __init__(self, root, asap=False, log=False):
         self.root = root
         self.api_url = "https://emc-san-mateo.com/api"  # Base URL for Flask API
         self.asap = asap
+        self.log = log
         self.loading_window = None  # Initialize the attribute in the constructor
-        self.show_loading()
 
-    def show_loading(self, message="Loading, please wait..."):
-        """Display a loading Toplevel."""
-        # Ensure GUI updates are on the main thread
-        self.root.after(0, self._create_loading_window, message)
+    # def show_loading(self, message="Loading, please wait..."):
+    #     """Display a loading Toplevel."""
+    #     # Ensure GUI updates are on the main thread
+    #     self.root.after(0, self._create_loading_window, message)
 
-    def _create_loading_window(self, message):
-        screen_width = self.root.winfo_screenwidth()
-        screen_height = self.root.winfo_screenheight()
+    # def _create_loading_window(self, message):
+    #     screen_width = self.root.winfo_screenwidth()
+    #     screen_height = self.root.winfo_screenheight()
 
-        # Calculate position to center the window
-        position_top = int(screen_height / 2 - 600 / 2)
-        position_right = int(screen_width / 2 - 800 / 2)
+    #     # Calculate position to center the window
+    #     position_top = int(screen_height / 2 - 600 / 2)
+    #     position_right = int(screen_width / 2 - 800 / 2)
 
-        # Create the loading window
-        self.loading_window = tk.Toplevel(self.root, bg=motif_color)
-        self.loading_window.title("Loading")
-        self.loading_window.geometry(f"{800}x{600}+{position_right}+{position_top}")  # Set size and position
-        self.loading_window.resizable(False, False)  # Disable resizing
-        self.loading_window.transient(self.root)  # Keep on top of the main window
-        self.loading_window.grab_set()  # Block interaction with the main window
-        self.loading_window.overrideredirect(True)  # Remove the title bar
+    #     # Create the loading window
+    #     self.loading_window = tk.Toplevel(self.root, bg=motif_color)
+    #     self.loading_window.title("Loading")
+    #     self.loading_window.geometry(f"{800}x{600}+{position_right}+{position_top}")  # Set size and position
+    #     self.loading_window.resizable(False, False)  # Disable resizing
+    #     self.loading_window.transient(self.root)  # Keep on top of the main window
+    #     self.loading_window.grab_set()  # Block interaction with the main window
+    #     self.loading_window.overrideredirect(True)  # Remove the title bar
 
-        # Add the message label to the window
-        tk.Label(self.loading_window, text=message, font=("Arial", 18, "bold"), fg='white', bg=motif_color, relief='sunken', bd=5, anchor='center').pack(pady=20, fill='both')
+    #     # Add the message label to the window
+    #     tk.Label(self.loading_window, text=message, font=("Arial", 18, "bold"), fg='white', bg=motif_color, relief='sunken', bd=5, anchor='center').pack(pady=20, fill='both')
 
-    def close_loading(self):
-        """Close the loading Toplevel."""
-        if self.loading_window:
-            # Ensure this happens on the main thread
-            self.root.after(0, self._destroy_loading_window)
+    # def close_loading(self):
+    #     """Close the loading Toplevel."""
+    #     if self.loading_window:
+    #         # Ensure this happens on the main thread
+    #         self.root.after(0, self._destroy_loading_window)
 
-    def _destroy_loading_window(self):
-        """Internal method to safely destroy the loading window."""
-        if self.loading_window:
-            self.loading_window.destroy()
-            self.loading_window = None
+    # def _destroy_loading_window(self):
+    #     """Internal method to safely destroy the loading window."""
+    #     if self.loading_window:
+    #         self.loading_window.destroy()
+    #         self.loading_window = None
 
     def check_soon_to_expire(self):
         """Method to fetch medicines soon to expire and log notifications."""
@@ -78,25 +78,24 @@ class NotificationManager:
                     continue
 
                 # Log the notification (this could involve some UI update or API call)
-                self.log_notification({
-                    "medicine_id": med_id,
-                    "medicine_name": med_name,
-                    "med_type": med_type,
-                    "dosage": dosage,
-                    "expiration_date": exp_date,
-                    "days_left": days_left,
-                })
+                if self.log:
+                    self.log_notification({
+                        "medicine_id": med_id,
+                        "medicine_name": med_name,
+                        "med_type": med_type,
+                        "dosage": dosage,
+                        "expiration_date": exp_date,
+                        "days_left": days_left,
+                    })
 
                 if self.asap:
                     self.create_notification_popup(med_name, med_type, dosage, exp_date, days_left, notification_count)
             
             # Close the loading window after the entire process is complete
-            self.close_loading()
             return medicines
 
         except requests.RequestException as e:
             print(f"Error fetching data from API: {e}")
-            self.close_loading()  # Ensure loading window is closed on error
 
     def log_notification(self, data):
         """Log the notification data."""
@@ -145,6 +144,4 @@ class NotificationManager:
             print(f"Error displaying notification popup: {e}")
 
     def start_checking(self):
-        """Start checking for soon-to-expire medicines in a separate thread."""
-        # Run the check_soon_to_expire method in a background thread to avoid blocking the UI
-        threading.Thread(target=self.check_soon_to_expire, daemon=True).start()
+        self.check_soon_to_expire()
