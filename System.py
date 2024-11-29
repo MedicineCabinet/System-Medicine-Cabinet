@@ -2921,7 +2921,7 @@ motif_color = '#42a7f5'
 
 
 class MedicineDeposit:
-    def __init__(self, name, generic_name, quantity, unit, expiration_date, dosage, root, content_frame, keyboardFrame, Username, Password, arduino, action="unlock", yes_callback=None):
+    def __init__(self, name, generic_name, quantity, unit, expiration_date, dosage, root, content_frame, keyboardFrame, Username, Password, arduino, action="unlock", yes_callback=None, reprint =False):
         self.root = root
         self.name = name.lower()
         self.generic_name = generic_name.lower()
@@ -2936,6 +2936,7 @@ class MedicineDeposit:
         self.arduino = arduino
         self.action = action
         self.yes_callback = yes_callback
+        self.reprint = reprint
 
         self.reference_window = root 
         if self.unit == 'capsule' or self.unit == 'tablet':
@@ -3085,7 +3086,7 @@ class MedicineDeposit:
             self.loading_window.destroy()
             self.loading_window = None
 
-    def print_qr_code(self, expiration_date):
+    def print_qr_code(self, expiration_date, reprint=False):
         """Prints the QR code and expiration date on the thermal printer,
         repeating the print if the unit is 'syrup' based on quantity,
         and showing a loading window during the process."""
@@ -3154,7 +3155,10 @@ class MedicineDeposit:
                 finally:
                     # Ensure both the loading window is closed and success message is shown after printing
                     self.close_loading_window()
-                    self.show_success_message(qr_code_filepath)
+                    if reprint:
+                        pass
+                    else:
+                        self.show_success_message(qr_code_filepath)
 
             # Start the print task in a new thread
             threading.Thread(target=print_task).start()
@@ -3248,9 +3252,9 @@ class MedicineDeposit:
             title="Medicine Deposited",
             message=f"Adding medicine: '{self.name.capitalize()}'\nPlease attach the printed QR Code with Exp. Date to the medicine.\n\nClick 'Add More' to add more medicine.\nClick 'Reprint' if printing of QR Code with Exp failed.\nClick 'No' if you dont want to add more medicine.",
             icon_path=qr_code_filepath,
-            no_callback=lambda: (LockUnlock(root, self.Username, self.Password, self.arduino,"unlock", "medicine inventory", type="deposit"), self.message_box.destroy()),
+            no_callback=lambda: (self.message_box.destroy(),LockUnlock(root, self.Username, self.Password, self.arduino,"unlock", "medicine inventory", type="deposit")),
             yes_callback=lambda: (self._yes_action(), self.message_box.destroy(), deposit_window(permission='deposit_again')),
-            reprint=lambda: self.print_qr_code(self.expiration_date),
+            reprint=lambda: self.print_qr_code(self.expiration_date, reprint=True),
             close_state=True
         )
 
@@ -3483,14 +3487,14 @@ def main():
     loading_label.pack(expand=True)  # Center the "Loading" message
     loading_frame.grid(row=0, column=0, sticky="nsew")  # Fill the container
 
-    # Show the loading frame initially
+    # Show the loading frame initiall
     loading_frame.tkraise()
 
     # Delay creation of login and main UI frames until Arduino connection is done
     def connect_to_arduino():
         global arduino
         try:
-            arduino = serial.Serial('COM3', 9600)  # Port of the Arduino
+            arduino = serial.Serial('COM7', 9600)  # Port of the Arduino
             time.sleep(2)  # Wait for the connection to establish
             print("\nSerial connection established")
             # Once connected, proceed to show login_frame

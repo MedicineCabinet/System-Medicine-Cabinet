@@ -120,7 +120,6 @@ class NotificationManager:
         try:
             response = requests.post(f"{self.api_url}/log_notification", json=data)
             response.raise_for_status()  # Raise an error for non-200 responses
-            print(f"Notification logged successfully. {data}")
         except requests.RequestException as e:
             print(f"Error logging notification: {e}: {response.text}")
 
