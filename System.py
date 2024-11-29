@@ -1635,6 +1635,9 @@ def edit_user(username):
         messagebox.showerror("Error", "Unexpected response format from server")
         return
 
+    title_label = tk.Label(content_frame, text="ACCOUNT SETTINGS", bg=motif_color, fg="white", font=('Arial', 25, 'bold'), height=2, relief='groove', bd=1)
+    title_label.pack(fill='both')
+
     # Create input frame and ensure it expands horizontally
     input_frame = tk.LabelFrame(content_frame, text='Edit User Account', font=('Arial', 14), pady=20, padx=10, relief='raised', bd=5)
     input_frame.pack(pady=30, padx=20, anchor='center')
