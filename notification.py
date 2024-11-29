@@ -128,6 +128,8 @@ class NotificationManager:
         try:
             from System import CustomMessageBox
             from System import root
+            if days_left < 0:
+                days_left = 0
             message_box = CustomMessageBox(
                 root=root,
                 title=f'Notification ({notification_count})',

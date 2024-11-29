@@ -1286,6 +1286,9 @@ def show_notification_table():
             expiration_date = med.get("expiration_date", "N/A")
             days_left = med.get("days_left", "N/A")
 
+            if days_left < 0:
+                days_left = 0
+
             tag = 'evenrow' if index % 2 == 0 else 'oddrow'
             tree_notif.insert(
                 "", "end", 
@@ -3123,6 +3126,8 @@ class MedicineDeposit:
 
             # Define the print task in a separate thread to prevent UI freezing
             def print_task():
+                notification_manager = NotificationManager(root, log=True)
+                notification_manager.start_checking() 
                 try:
                     with serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=TIMEOUT) as printer:
                         # If the unit is 'syrup', repeat printing based on quantity
@@ -3462,6 +3467,7 @@ def main():
     # root.overrideredirect(True)
     root.title("Electronic Medicine Cabinet Control System")
     root.state("zoomed")  # Maximize the window to full screen
+    root.overrideredirect(True)  # Remove the title bar
 
     container = tk.Frame(root)
     container.pack(fill="both", expand=True)
@@ -3484,7 +3490,7 @@ def main():
     def connect_to_arduino():
         global arduino
         try:
-            arduino = serial.Serial('COM5', 9600)  # Port of the Arduino
+            arduino = serial.Serial('COM3', 9600)  # Port of the Arduino
             time.sleep(2)  # Wait for the connection to establish
             print("\nSerial connection established")
             # Once connected, proceed to show login_frame
