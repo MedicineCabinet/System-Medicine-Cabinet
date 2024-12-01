@@ -22,6 +22,7 @@ import pygame
 from notification import NotificationManager
 import json
 import requests
+import hashlib
 
 
 INACTIVITY_PERIOD = 300000 #automatic logout timer in milliseconds
@@ -319,6 +320,10 @@ def logout_with_sensor_check(logout_type):
         elif data == "Locked" and response == "Object detected":
             logout(logout_type)
             print("Logged Out and data is locked")
+
+        elif data == "Locked" and response == "No object detected":
+            LockUnlock(content_frame, Username, Password, arduino, "automatic_logout", "medicine inventory", container=root, exit_callback=lambda: logout(logout_type))
+
         else:
             for widget in root.winfo_children():
                 if isinstance(widget, tk.Toplevel):
@@ -339,6 +344,8 @@ def logout_with_sensor_check(logout_type):
                     elif response == "Object detected" and data == "Locked":
                         logout(logout_type)
                         print("Logged Out and data is locked")
+                    elif data == "Locked" and response == "No object detected":
+                        LockUnlock(content_frame, Username, Password, arduino, "automatic_logout", "medicine inventory", container=root, exit_callback=lambda: logout(logout_type))
                     else:
                         # Show warning again and recheck sensors
                         warning_box = CustomMessageBox(
@@ -1560,7 +1567,9 @@ def add_user():
                 # Validate user input
                 if validate_user_info('add', new_username, new_password, confirm_password, new_position, new_account_type, new_account_type, new_position):
 
-                    qr_code_data = f"{new_username} - {new_position}"
+                    raw_data = f"{new_username}:{new_position}"
+                    hashed_data = hashlib.sha256(raw_data.encode()).hexdigest()
+                    qr_code_data = f"EMC San Mateo: {hashed_data}"
                     # Flask API URL
                     flask_url = "https://emc-san-mateo.com/api/add_user_account"  # Replace with your actual API URL
                     
@@ -1814,7 +1823,7 @@ def perform_printing(qr_image_path, username, printing_window, userName, mode):
     try:
         # Simulate the QR code printing process
         qr_image = Image.open(qr_image_path)
-        qr_image = qr_image.resize((200, 200))
+        qr_image = qr_image.resize((250, 250))
 
         font_path = "C:/Windows/Fonts/arialbd.ttf"  # Adjust path as needed
         font = ImageFont.truetype(font_path, 35)
@@ -2333,7 +2342,7 @@ class LockUnlock:
         else:
             manual_instruction = tk.Label(tab1, text=f'Enter your username and password manually\nto lock the door.', font=('Arial', 18))
         if self.type == "withdraw" and self.action == 'lock':
-            manual_instruction = tk.Label(tab1, text=f'Enter your username and password manually\nto unlock the door before proceeding to lock the door.', font=('Arial', 18))
+            manual_instruction = tk.Label(tab1, text=f'Enter your username and password manually\nto lock the door.', font=('Arial', 18))
         if self.action == 'automatic_logout':
             manual_instruction = tk.Label(tab1, text="Please enter your username and password to lock the door now.", font=('Arial', 18))
             title_frame.config(bg='red')
@@ -2571,7 +2580,7 @@ class LockUnlock:
                         position = user_data['position']
                         password = user_data['password']
 
-                        if Username == username and Password == password: 
+                        if Username == username and Password == password:
 
                             action_taken = 'Lock' if self.action in ['successful_close', 'automatic_logout', 'Lock', 'lock'] else 'Unlock'  
 
@@ -2632,7 +2641,7 @@ class LockUnlock:
                                     self.window.destroy()
                                     self.arduino.write(b'lock\n')
                                     self.exit_callback()
-                                    
+                                   
                                 if self.action == "unlock" and self.type == "disable":
                                     self.window.destroy()
                                     self._unlock_door()
@@ -2642,7 +2651,7 @@ class LockUnlock:
                                         message="Lock functionality is now disabled temporarily",
                                         icon_path=os.path.join(os.path.dirname(__file__), 'images', 'unlock_icon.png'),
                                         ok_callback=lambda: (message_box.destroy(), logout('disable-lock-unlock')),
-                                        not_allow_idle=True 
+                                        not_allow_idle=True
                                     )
                             else:
                                 # Handle logging error
@@ -2887,10 +2896,11 @@ class QRCodeScanner:
 
         try:
             response = requests.post(url, json=data)
+            # print(response.json())
             if response.status_code == 200:
                 result = response.json()
                 self.result_label.config(
-                    text=f"You Withdrawn:\nMedicine: {result.get('name', 'Unknown')}\nNew Quantity: {result.get('quantity', 0)}",
+                    text=f"You Withdrawn:\nMedicine: {qr_code}\nNew Quantity: {result.get('quantity', 0)}",
                     fg="green",
                     height=5
                 )
@@ -3518,7 +3528,7 @@ def main():
             color="red",  # Background color for warning
             icon_path=os.path.join(os.path.dirname(__file__), 'images', 'warningGrey_icon.png'),  # Path to your icon
             ok_callback=lambda: retry_connection(message_box),
-            not_allow_idle=True
+            not_allow_idle=True 
         )
 
     # Retry the connection when the button is clicked
@@ -3530,10 +3540,9 @@ def main():
     # Call the function to connect to Arduino after showing the "Loading" screen
     root.after(100, connect_to_arduino)  # Introduce a slight delay before connecting
 
-    # Initial internet check before showing any UI
+    # Initial internet check before showing any UIi
     if not check_internet():
         wifi_window = WiFiConnectUI(root)
-        login_frame.tkraise()
         root.wait_window(wifi_window)  # Pause the main UI until WiFi window is closed
         login_frame.tkraise()
 

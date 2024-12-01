@@ -15,6 +15,8 @@ class WiFiConnectUI(tk.Toplevel):
         super().__init__(parent)
         self.title("Connect to Wi-Fi")
         self.configure(bg='#f7f7f7')
+        self.grab_set()
+        self.attributes('-topmost', True)
 
         self.geometry("300x320")
         self.center_window(300, 320)
