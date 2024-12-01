@@ -23,6 +23,7 @@ from notification import NotificationManager
 import json
 import requests
 import hashlib
+import uuid
 
 
 INACTIVITY_PERIOD = 300000 #automatic logout timer in milliseconds
@@ -321,9 +322,6 @@ def logout_with_sensor_check(logout_type):
             logout(logout_type)
             print("Logged Out and data is locked")
 
-        elif data == "Locked" and response == "No object detected":
-            LockUnlock(content_frame, Username, Password, arduino, "automatic_logout", "medicine inventory", container=root, exit_callback=lambda: logout(logout_type))
-
         else:
             for widget in root.winfo_children():
                 if isinstance(widget, tk.Toplevel):
@@ -344,8 +342,6 @@ def logout_with_sensor_check(logout_type):
                     elif response == "Object detected" and data == "Locked":
                         logout(logout_type)
                         print("Logged Out and data is locked")
-                    elif data == "Locked" and response == "No object detected":
-                        LockUnlock(content_frame, Username, Password, arduino, "automatic_logout", "medicine inventory", container=root, exit_callback=lambda: logout(logout_type))
                     else:
                         # Show warning again and recheck sensors
                         warning_box = CustomMessageBox(
@@ -1567,9 +1563,10 @@ def add_user():
                 # Validate user input
                 if validate_user_info('add', new_username, new_password, confirm_password, new_position, new_account_type, new_account_type, new_position):
 
-                    raw_data = f"{new_username}:{new_position}"
-                    hashed_data = hashlib.sha256(raw_data.encode()).hexdigest()
-                    qr_code_data = f"EMC San Mateo: {hashed_data}"
+                    # raw_data = f"{new_username}:{new_position}"
+                    randomUUID = str(uuid.uuid4())
+                    hashed_data = hashlib.sha256(randomUUID.encode()).hexdigest()
+                    qr_code_data = hashed_data
                     # Flask API URL
                     flask_url = "https://emc-san-mateo.com/api/add_user_account"  # Replace with your actual API URL
                     
