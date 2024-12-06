@@ -69,9 +69,6 @@ def authenticate_user(username, password):
         show_medicine_supply()
         configure_sidebar(user_role)
         update_datetime()
-        # Check for soon-to-expire medicines on home page load
-        notification_manager = NotificationManager(root, asap=True, log=True)
-        notification_manager.start_checking()  # Automatically check and pop-up notifications
     else:
         message_box = CustomMessageBox(
             root=login_frame,
@@ -168,6 +165,12 @@ def create_login_frame(container):
 
 #functin to create the UI of Main UI Frame, including the sidebar navigation
 def create_main_ui_frame(container): 
+    global notif_count
+    # Check for soon-to-expire medicines on home page load
+    notification_manager = NotificationManager(root, log=True)
+    notification_manager.start_checking()  # Automatically check and pop-up notifications
+    medicines = notification_manager.check_soon_to_expire()
+    notif_count = len(medicines)
     global main_ui_frame, date_time_label
     main_ui_frame = tk.Frame(container, bg=motif_color)
     global content_frame, inventory_img, cabinet_img, notification_img, account_setting_img
@@ -200,7 +203,7 @@ def create_main_ui_frame(container):
     doorLogs_button.grid(row=2, column=0, sticky="we", columnspan=2)
     notification_img = ImageTk.PhotoImage(Image.open(os.path.join(os.path.dirname(__file__), 'images', 'notification_Icon.png')).resize((50, 50), Image.LANCZOS))
     global notification_button
-    notification_button = tk.Button(sidebar_frame, height=100, width=350, text="Notification", command=show_notification_table, font=("Arial", 16), bg=motif_color, fg="white", bd=1, relief="sunken", compound=tk.LEFT, image=notification_img, justify="left", padx=10, anchor='w')
+    notification_button = tk.Button(sidebar_frame, height=100, width=350, text=f"Expiration ({notif_count})", command=show_notification_table, font=("Arial", 16), bg=motif_color, fg="white", bd=1, relief="sunken", compound=tk.LEFT, image=notification_img, justify="left", padx=10, anchor='w')
     notification_button.image = notification_img
     notification_button.grid(row=4, column=0, sticky="we", columnspan=2)
     
@@ -1225,8 +1228,8 @@ def on_row_select(event):
     # Create a new Toplevel window to show the selected row's data
     if row_data:  # Only if a row is selected
         text = (f"A medicine is about to expire!\n\n"
-                f"Medicine Name: {row_data[0]}\nExpiration Date: {row_data[1]}\n"
-                f"Notification Date: {row_data[2]}\nDays Until Expiration: {row_data[3]}")
+                f"Medicine Name: {row_data[0]}-{row_data[1]}-{row_data[2]}"
+                f"Expiration Date: {row_data[3]}\nDays Until Expiration: {row_data[4]}")
         message_box = CustomMessageBox(
             root=content_frame,
             title="Medicine Expiration",
@@ -1236,10 +1239,10 @@ def on_row_select(event):
         )
 
 def show_notification_table():
+    global notif_count, tree_notif
     # Apply table style
     table_style()
-    global tree_notif
-    notify = NotificationManager(root, asap=False)  # NotificationManager instance
+    notify = NotificationManager(root)  # NotificationManager instance
     notify.start_checking()  # Automatically check and pop-up notifications
 
     clear_frame()
@@ -1248,6 +1251,7 @@ def show_notification_table():
 
     # Fetch data from API
     medicines = notify.check_soon_to_expire()  # Modify to return fetched data 
+    notif_count = len(medicines)
     # Add a header
     tk.Label(content_frame, text="NOTIFICATION LOGS", bg=motif_color, fg="white",
              font=('Arial', 25, 'bold'), height=2, relief='groove', bd=1).pack(fill='x')
@@ -1277,25 +1281,65 @@ def show_notification_table():
         tree_notif.column(col, anchor=tk.CENTER, width=100)
 
     # Row styling
+    # Define custom styles for the Treeview
+    tree_notif.tag_configure('red', background='#FF0000')
+    tree_notif.tag_configure('orange', background="#FFA500")
+    tree_notif.tag_configure('yellow', background='#FFFF00')
     tree_notif.tag_configure('oddrow', background="white")
     tree_notif.tag_configure('evenrow', background="#f2f2f2")
 
     # Populate Treeview with data
+    # Populate Treeview with data
     if medicines:  # Check if data is not empty
-        for index, med in enumerate(medicines):
+        valid_medicines = []
+
+        for med in medicines:
             med_name = med.get("name", "Unknown")
             med_type = med.get("type", "Unknown")
             dosage = med.get("dosage", "Unknown")
             expiration_date = med.get("expiration_date", "N/A")
             days_left = med.get("days_left", "N/A")
 
-            if days_left < 0:
-                days_left = 0
+            # Safely handle `days_left` as an integer
+            try:
+                days_left = int(days_left)
+            except (ValueError, TypeError):
+                days_left = float('inf')  # Use infinity for invalid or missing data to place them last in sorting
 
-            tag = 'evenrow' if index % 2 == 0 else 'oddrow'
+            valid_medicines.append({
+                "name": med_name,
+                "type": med_type,
+                "dosage": dosage,
+                "expiration_date": expiration_date,
+                "days_left": days_left
+            })
+
+        # Sort medicines by days_left (ascending)
+        sorted_medicines = sorted(valid_medicines, key=lambda x: x["days_left"])
+
+        # Insert sorted data into the Treeview
+        for index, med in enumerate(sorted_medicines):
+            med_name = med["name"]
+            med_type = med["type"]
+            dosage = med["dosage"]
+            expiration_date = med["expiration_date"]
+            days_left = med["days_left"]
+
+            # Set the tag based on days_left
+            if days_left == float('inf'):  # Handle invalid days_left
+                tag = 'oddrow' if index % 2 else 'evenrow'
+            elif days_left == 0:
+                tag = 'red'
+            elif 0 < days_left <= 14:
+                tag = 'orange'
+            elif 14 < days_left <= 21:
+                tag = 'yellow'
+            else:
+                tag = 'oddrow' if index % 2 else 'evenrow'
+
             tree_notif.insert(
                 "", "end", 
-                values=(med_name, med_type, dosage, expiration_date, days_left), 
+                values=(med_name, med_type, dosage, expiration_date, days_left if days_left != float('inf') else "N/A"), 
                 tags=(tag,)
             )
 

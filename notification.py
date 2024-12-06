@@ -68,10 +68,12 @@ class NotificationManager:
                 exp_date = med["expiration_date"]
 
                 try:
-                    med["days_left"] = (
-                        datetime.datetime.strptime(exp_date, "%Y-%m-%d").date() -
-                        datetime.datetime.now().date()
-                    ).days
+                    # Calculate days left and ensure it's not negative
+                    med["days_left"] = max(
+                        (datetime.datetime.strptime(exp_date, "%Y-%m-%d").date() -
+                        datetime.datetime.now().date()).days, 
+                        0
+                    )
                     days_left = med["days_left"]
                 except ValueError:
                     print(f"Invalid expiration date format for {med_name}: {exp_date}")
