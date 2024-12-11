@@ -51,7 +51,7 @@ os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
 #function for authentication during the login frame
 def authenticate_user(username, password):
-    global Username, Password
+    global Username, Password, user_role
     validate_url = "https://emc-san-mateo.com/api/user_select"
     Username = username
     Password = password
@@ -248,10 +248,10 @@ def reset_button_colors():
         account_setting_button.config(bg=default_bg_color)
         account_setting_button.config(fg=default_fg_color)
 
-#Function that checks if the user is an 'Admin' or 'Staff' to configure the sidebar,
+#Function that checks if the user is an 'Admin' or 'Staff' or 'Superadmin' to configure the sidebar,
 def configure_sidebar(user_role):
     global account_setting_button
-    if user_role == "Admin":     #if the user is 'Admin' then the account setting button will be present in the sidebar
+    if user_role == "Admin" or  user_role == "Superadmin":     #if the user is 'Admin' or 'Superadmin' then the account setting button will be present in the sidebar
         if account_setting_button is None:
             account_setting_button = tk.Button(sidebar_frame, height=100, width=350, text="Account Settings", command=show_account_setting, font=("Arial", 16), bg=motif_color, fg="white", bd=1, relief="groove", compound=tk.LEFT, image=account_setting_img, padx=10, anchor='w')
             account_setting_button.image = account_setting_img
@@ -454,15 +454,40 @@ def deposit_window(permission):
     numKeyboard.create_keyboard()
     numKeyboard.hide()
 
-    # Type Combobox
-    tk.Label(input_frame, text="Generic Name: ", font=("Arial", 16)).grid(row=0, column=0, padx=(30, 20), pady=10, sticky='e')
-    type_combobox = tk.Entry(input_frame, font=("Arial", 16), width=2)
-    type_combobox.grid(row=0, column=1, padx=10, pady=10, sticky='ew')
+    def fetch_data_from_api(endpoint):
+        try:
+            response = requests.get(f"https://emc-san-mateo.com/api/{endpoint}")
+            response.raise_for_status()  # Raise an error for bad status codes
+            data = response.json()
+            if isinstance(data, list):  # Ensure data is a list
+                return data
+            else:
+                print(f"Unexpected response: {data}")
+                return []
+        except requests.RequestException as e:
+            print(f"Error fetching data from API: {e}")
+            return []
 
-    # Name Combobox
-    tk.Label(input_frame, text="Brand Name: ", font=("Arial", 16)).grid(row=1, column=0, padx=(30, 20), pady=10, sticky='e')
-    name_combobox = tk.Entry(input_frame, font=("Arial", 16), width=20)
-    name_combobox.grid(row=1, column=1, padx=10, pady=10, sticky='ew')
+    def populate_combobox():
+        # Fetch data for comboboxes
+        generic_names = fetch_data_from_api("get_generic_names")
+        brand_names = fetch_data_from_api("get_brand_names")
+
+        # Update the comboboxes with the fetched s
+        type_combobox["values"] = generic_names
+        name_combobox["values"] = brand_names
+
+    # Define GUI elements
+    tk.Label(input_frame, text="Generic Name:", font=("Arial", 16)).grid(row=0, column=0, padx=(30, 20), pady=10, sticky='e')
+    type_combobox = ttk.Combobox(input_frame, font=("Arial", 16), width=20)
+    type_combobox.grid(row=0, column=1, padx=10, pady=10)
+
+    tk.Label(input_frame, text="Brand Name:", font=("Arial", 16)).grid(row=1, column=0, padx=(30, 20), pady=10, sticky='e')
+    name_combobox = ttk.Combobox(input_frame, font=("Arial", 16), width=20)
+    name_combobox.grid(row=1, column=1, padx=10, pady=10)
+
+    # Automatically populate comboboxes on startup
+    populate_combobox()
 
     # Unit Combobox
     tk.Label(input_frame, text="Dosage: ", font=("Arial", 16)).grid(row=2, column=0, padx=(30, 20), pady=10, sticky='e')
@@ -536,7 +561,8 @@ def deposit_window(permission):
             def proceed_depositing():
                 deposit.save_to_database()
                 deposit_Toplevel.destroy()
-                show_medicine_supply()
+        
+                show_medicine_supply
 
     # Cancel and Save buttons
     cancel_img = ImageTk.PhotoImage(Image.open(os.path.join(os.path.dirname(__file__), 'images', 'cancelBlack_icon.png')).resize((25, 25), Image.LANCZOS))
@@ -545,14 +571,31 @@ def deposit_window(permission):
     cancel_button.grid(row=7, column=0, padx=(40, 60), pady=(50, 0))
 
     if permission == 'deposit_again':
-        cancel_button.config(command=lambda: (LockUnlock(root, Username, Password, arduino, "lock", "medicine inventory", container=root, type='deposit'), deposit_Toplevel.destroy()))
+        cancel_button.config(command=lambda: (LockUnlock(root, Userfname, Password, arduino, "lock", "medicine inventory", container=root, type='deposit'), deposit_Toplevel.destroy()))
     else:
         cancel_button.config(command=lambda: (show_medicine_supply(), deposit_Toplevel.destroy()))
+
+    def clear_fields():
+        type_combobox.set('')  # Clear the Generic Name combobox
+        name_combobox.set('')  # Clear the Brand Name combobox
+        dosage_spinbox.delete(0, tk.END)  # Clear the Dosage spinbox
+        dosage_spinbox.insert(0, '')  # Set an empty value for Dosage
+        quantity_spinbox.delete(0, tk.END)  # Clear the Quantity spinbox
+        quantity_spinbox.insert(0, '')  # Set an empty value for Quantity
+        selected_unit.set("Select a unit")  # Reset Unit option to placeholder
+        expiration_date_entry.set_date('')  # Clear the Expiration Date entry
+
+    # Add the Clear button
+    clear_img = ImageTk.PhotoImage(Image.open(os.path.join(os.path.dirname(__file__), 'images', 'refresh_icon.png')).resize((25, 25), Image.LANCZOS))
+    clear_button = tk.Button(input_frame, text="Clear", font=("Arial", 16), bg=motif_color, fg='white', width=130, padx=20, relief="raised", bd=3, compound=tk.LEFT, image=clear_img, pady=5, command=clear_fields)
+    clear_button.image = clear_img
+    clear_button.grid(row=7, column=1, padx=(40, 60), pady=(50, 0))
 
     save_img = ImageTk.PhotoImage(Image.open(os.path.join(os.path.dirname(__file__), 'images', 'saveBlack_icon.png')).resize((25, 25), Image.LANCZOS))
     save_button = tk.Button(input_frame, text="Save", font=("Arial", 16), bg=motif_color, fg='white', width=130, padx=20, relief="raised", bd=3, compound=tk.LEFT, image=save_img, pady=5, command=save_medicine)
     save_button.image = save_img
-    save_button.grid(row=7, column=1, padx=(60, 40), pady=(50, 0))
+    save_button.grid(row=7, column=2, padx=(60, 40), pady=(50, 0))
+
 
 def check_sensor(toplevel):
     print("Checking sensors...")
@@ -1376,18 +1419,22 @@ def show_account_setting():
     table_style()  # Call the function for styling the treeview
 
     # Define the treeview with a maximum height of 7 rows
-    columns = ("username", "position", "accountType")
+    columns = ("username", "position", "accountType", "email", "status")
     tree = ttk.Treeview(tree_frame, columns=columns, show="headings", height=7)
     
     # Define headings
     tree.heading("username", text="Username")
     tree.heading("position", text="Position")
     tree.heading("accountType", text="Account Type")
+    tree.heading("email", text="Email")
+    tree.heading("status", text="Active Status")
 
     # Define column widths
-    tree.column("username", width=150, anchor=tk.CENTER)
-    tree.column("position", width=150, anchor=tk.CENTER)
-    tree.column("accountType", width=150, anchor=tk.CENTER)
+    tree.column("username", width=80, anchor=tk.CENTER)
+    tree.column("position", width=70, anchor=tk.CENTER)
+    tree.column("accountType", width=70, anchor=tk.CENTER)
+    tree.column("email", width=170, anchor=tk.CENTER)
+    tree.column("status", width=60, anchor=tk.CENTER)
 
     try:
         # Fetch data from Flask API
@@ -1399,8 +1446,10 @@ def show_account_setting():
             username = user['username']
             position = user['position']
             accountType = user['accountType']
+            email = user['email']
+            status = "Active" if user.get('status', 0) == 1 else "Deactive"
             tag = 'evenrow' if i % 2 == 0 else 'oddrow'
-            tree.insert("", "end", values=(username, position, accountType), tags=(tag,))
+            tree.insert("", "end", values=(username, position, accountType, email, status), tags=(tag,))
     except requests.exceptions.RequestException as e:
         print(f"Error fetching data from API: {e}")
         message_box = CustomMessageBox(
@@ -1419,27 +1468,131 @@ def show_account_setting():
     # Pack the Treeview within the frame
     tree.pack(padx=20, pady=10, fill=tk.BOTH, expand=True)
 
-    # Create a frame for the buttons below the Treeview
-    button_frame = tk.Frame(content_frame)
-    button_frame.pack(padx=50, pady=10, fill=tk.X)
+    if user_role == 'Superadmin':
+        # Create a frame for the buttons below the Treeview
+        button_frame = tk.Frame(content_frame)
+        button_frame.pack(padx=50, pady=10, fill=tk.X)
 
-    button_frame.columnconfigure([0, 1, 2], weight=1)
+        button_frame.columnconfigure([0, 1, 2, 3, 4], weight=1)
 
-    add_img = ImageTk.PhotoImage(Image.open(os.path.join(os.path.dirname(__file__), 'images', 'add_icon.png')).resize((25, 25), Image.LANCZOS))
-    add_button = tk.Button(button_frame, text="Add User", font=("Arial", 15), pady=20, padx=25, bg=motif_color, fg='white', height=25, relief="raised", bd=3, compound=tk.LEFT, image=add_img, command=add_user)
-    add_button.image = add_img
-    add_button.grid(row=0, column=0, padx=30, pady=10, sticky="ew")
+        add_img = ImageTk.PhotoImage(Image.open(os.path.join(os.path.dirname(__file__), 'images', 'add_icon.png')).resize((25, 25), Image.LANCZOS))
+        add_button = tk.Button(button_frame, text="Add User", font=("Arial", 15), pady=20, padx=25, bg=motif_color, fg='white', height=25, relief="raised", bd=3, compound=tk.LEFT, image=add_img, command=add_user)
+        add_button.image = add_img
+        add_button.grid(row=0, column=0, padx=20, pady=10, sticky="ew")
 
-    edit_img = ImageTk.PhotoImage(Image.open(os.path.join(os.path.dirname(__file__), 'images', 'edit_icon.png')).resize((25, 25), Image.LANCZOS))
-    edit_button = tk.Button(button_frame, text="Edit User", font=("Arial", 15), pady=20, padx=25, bg=motif_color, fg='white', height=25, relief="raised", bd=3, compound=tk.LEFT, image=edit_img, command=lambda: on_tree_select(tree))
-    edit_button.image = edit_img
-    edit_button.grid(row=0, column=1, padx=30, pady=10, sticky="ew")
+        edit_img = ImageTk.PhotoImage(Image.open(os.path.join(os.path.dirname(__file__), 'images', 'edit_icon.png')).resize((25, 25), Image.LANCZOS))
+        edit_button = tk.Button(button_frame, text="Edit User", font=("Arial", 15), pady=20, padx=25, bg=motif_color, fg='white', height=25, relief="raised", bd=3, compound=tk.LEFT, image=edit_img, command=lambda: on_tree_select(tree))
+        edit_button.image = edit_img
+        edit_button.grid(row=0, column=1, padx=20, pady=10, sticky="ew")
 
-    delete_img = ImageTk.PhotoImage(Image.open(os.path.join(os.path.dirname(__file__), 'images', 'delete_icon.png')).resize((25, 25), Image.LANCZOS))
-    delete_button = tk.Button(button_frame, text="Delete User", font=("Arial", 15), pady=20, padx=25, bg=motif_color, fg='white', height=25, relief="raised", bd=3, compound=tk.LEFT, image=delete_img, command=lambda: delete_selected_user(tree, Username))
-    delete_button.image = delete_img
-    delete_button.grid(row=0, column=2, padx=30, pady=10, sticky="ew")
+        activate_img = ImageTk.PhotoImage(Image.open(os.path.join(os.path.dirname(__file__), 'images', 'accountSetting_Icon.png')).resize((25, 25), Image.LANCZOS))
+        activate_button = tk.Button(button_frame, text="Delete User", font=("Arial", 15), pady=20, padx=25, bg=motif_color, fg='white', height=25, relief="raised", bd=3, compound=tk.LEFT, image=activate_img, command=lambda: toggle_user_status(tree, Username))
+        activate_button.image = activate_img
+        activate_button.grid(row=0, column=2, padx=20, pady=10, sticky="ew")
 
+        delete_img = ImageTk.PhotoImage(Image.open(os.path.join(os.path.dirname(__file__), 'images', 'delete_icon.png')).resize((25, 25), Image.LANCZOS))
+        delete_button = tk.Button(button_frame, text="Activate User/\nDeactivate User", font=("Arial", 15), pady=20, padx=25, bg=motif_color, fg='white', height=25, relief="raised", bd=3, compound=tk.LEFT, image=delete_img, command=lambda: delete_selected_user(tree, Username))
+        delete_button.image = delete_img
+        delete_button.grid(row=0, column=3, padx=20, pady=10, sticky="ew")
+
+        refresh_img = ImageTk.PhotoImage(Image.open(os.path.join(os.path.dirname(__file__), 'images', 'refresh_icon.png')).resize((25, 25), Image.LANCZOS))
+        refresh_button = tk.Button(button_frame, text="Refresh", font=("Arial", 15), pady=20, padx=25, bg=motif_color, fg='white', height=25, relief="raised", bd=3, compound=tk.LEFT, image=refresh_img, command=show_account_setting)
+        refresh_button.image = refresh_img
+        refresh_button.grid(row=0, column=4, padx=20, pady=10, sticky="ew")
+    else:
+        # Create a frame for the buttons below the Treeview
+        button_frame = tk.Frame(content_frame)
+        button_frame.pack(padx=50, pady=10, fill=tk.X)
+
+        button_frame.columnconfigure([0, 1, 2, 3], weight=1)
+
+        add_img = ImageTk.PhotoImage(Image.open(os.path.join(os.path.dirname(__file__), 'images', 'add_icon.png')).resize((25, 25), Image.LANCZOS))
+        add_button = tk.Button(button_frame, text="Add User", font=("Arial", 15), pady=20, padx=25, bg=motif_color, fg='white', height=25, relief="raised", bd=3, compound=tk.LEFT, image=add_img, command=add_user)
+        add_button.image = add_img
+        add_button.grid(row=0, column=0, padx=20, pady=10, sticky="ew")
+
+        edit_img = ImageTk.PhotoImage(Image.open(os.path.join(os.path.dirname(__file__), 'images', 'edit_icon.png')).resize((25, 25), Image.LANCZOS))
+        edit_button = tk.Button(button_frame, text="Edit User", font=("Arial", 15), pady=20, padx=25, bg=motif_color, fg='white', height=25, relief="raised", bd=3, compound=tk.LEFT, image=edit_img, command=lambda: on_tree_select(tree))
+        edit_button.image = edit_img
+        edit_button.grid(row=0, column=1, padx=20, pady=10, sticky="ew")
+
+        activate_img = ImageTk.PhotoImage(Image.open(os.path.join(os.path.dirname(__file__), 'images', 'accountSetting_Icon.png')).resize((25, 25), Image.LANCZOS))
+        activate_button = tk.Button(button_frame, text="Activate /\nDeactivate User", font=("Arial", 15), pady=20, padx=25, bg=motif_color, fg='white', height=25, relief="raised", bd=3, compound=tk.LEFT, image=activate_img, command=lambda: toggle_user_status(tree, Username))
+        activate_button.image = activate_img
+        activate_button.grid(row=0, column=2, padx=20, pady=10, sticky="ew")
+
+        refresh_img = ImageTk.PhotoImage(Image.open(os.path.join(os.path.dirname(__file__), 'images', 'refresh_icon.png')).resize((25, 25), Image.LANCZOS))
+        refresh_button = tk.Button(button_frame, text="Refresh", font=("Arial", 15), pady=20, padx=25, bg=motif_color, fg='white', height=25, relief="raised", bd=3, compound=tk.LEFT, image=refresh_img, command=show_account_setting)
+        refresh_button.image = refresh_img
+        refresh_button.grid(row=0, column=3, padx=20, pady=10, sticky="ew")
+
+
+def toggle_user_status(tree, authenticated_user):
+    selected_item = tree.selection()  # Get the selected item
+    if not selected_item:
+        print("No user selected.")
+        return
+
+    username = tree.item(selected_item, "values")[0]
+    account_type = tree.item(selected_item, "values")[2]  # Account type for the selected user
+    status = tree.item(selected_item, "values")[4]  # Assume 4th column contains status (Active/Inactive)
+
+    # Get admin count from Flask API
+    try:
+        response = requests.get("https://emc-san-mateo.com/api/admin_count")
+        response.raise_for_status()
+        admin_count = response.json().get('admin_count', 0)
+    except requests.RequestException as e:
+        print(f"Error fetching admin count: {e}")
+        return
+
+    # Toggle status via the Flask API
+    def toggle_status_request():
+        try:
+            api_endpoint = "https://emc-san-mateo.com/api/toggle_user_status"
+            toggle_response = requests.post(api_endpoint, json={"username": username})
+            toggle_response.raise_for_status()
+            message = toggle_response.json().get('message', 'Action successful.')
+            print(message)
+
+            # Refresh the UI to reflect the new status
+            show_account_setting()
+        except requests.RequestException as e:
+            print(f"Error toggling user status: {e}")
+
+    # Define callbacks for confirmation dialog
+    def yes_toggle():
+        # Prevent deactivating the last admin account
+        if status == "Active" and username == authenticated_user and account_type == "Admin" and admin_count <= 1:
+            CustomMessageBox(
+                root=tree,
+                title="Action Denied",
+                message="Cannot deactivate the last admin account.",
+                color="red",
+                icon_path=os.path.join(os.path.dirname(__file__), 'images', 'warningGrey_icon.png')
+            )
+            return
+        toggle_status_request()
+
+    def no_toggle():
+        print("User status change canceled.")
+
+    # Determine action
+    if status == "Active":
+        confirm_message = f"Are you sure you want to deactivate the user '{username}'?"
+    else:
+        confirm_message = f"Are you sure you want to activate the user '{username}'?"
+
+    # Show confirmation dialog
+    CustomMessageBox(
+        root=tree,
+        title="Confirm Action",
+        message=confirm_message,
+        color="red",
+        yes_callback=yes_toggle,
+        no_callback=no_toggle,
+        icon_path=os.path.join(os.path.dirname(__file__), 'images', 'warningGrey_icon.png')
+    )
 
 def delete_selected_user(tree, authenticated_user):
     selected_item = tree.selection()  # Get selected item
@@ -1542,16 +1695,20 @@ def add_user():
     username_entry = tk.Entry(input_frame, font=("Arial", 14), width=20)
     username_entry.grid(row=1, column=1, padx=10, pady=10)
 
-    tk.Label(input_frame, text="Password", font=("Arial", 14)).grid(row=2, column=0, padx=10, pady=10)
-    password_entry = tk.Entry(input_frame, show="*", font=("Arial", 14), width=20)
-    password_entry.grid(row=2, column=1, padx=10, pady=10)
+    tk.Label(input_frame, text="Email", font=("Arial", 14)).grid(row=2, column=0, padx=10, pady=10)
+    email_entry = tk.Entry(input_frame, font=("Arial", 14), width=20)
+    email_entry.grid(row=2, column=1, padx=10, pady=10)
 
-    tk.Label(input_frame, text="Confirm Password", font=("Arial", 14)).grid(row=3, column=0, padx=10, pady=10)
+    tk.Label(input_frame, text="Password", font=("Arial", 14)).grid(row=3, column=0, padx=10, pady=10)
+    password_entry = tk.Entry(input_frame, show="*", font=("Arial", 14), width=20)
+    password_entry.grid(row=3, column=1, padx=10, pady=10)
+
+    tk.Label(input_frame, text="Confirm Password", font=("Arial", 14)).grid(row=4, column=0, padx=10, pady=10)
     confirm_password_entry = tk.Entry(input_frame, show="*", font=("Arial", 14), width=20)
-    confirm_password_entry.grid(row=3, column=1, padx=10, pady=10)
+    confirm_password_entry.grid(row=4, column=1, padx=10, pady=10)
 
     # Position OptionMenu
-    tk.Label(input_frame, text="Position", font=("Arial", 14)).grid(row=4, column=0, padx=10, pady=10)
+    tk.Label(input_frame, text="Position", font=("Arial", 14)).grid(row=5, column=0, padx=10, pady=10)
 
     # Define positions and set placeholder
     positions = ["Midwife", "BHW", "BNS", "BHC"]
@@ -1559,10 +1716,10 @@ def add_user():
 
     position_option_menu = tk.OptionMenu(input_frame, selected_position, *positions)
     position_option_menu.config(font=("Arial", 16), width=20, bg='white')
-    position_option_menu.grid(row=4, column=1, padx=10, pady=10, sticky='ew')
+    position_option_menu.grid(row=5, column=1, padx=10, pady=10, sticky='ew')
 
     # Account Type OptionMenu
-    tk.Label(input_frame, text="Account Type", font=("Arial", 14)).grid(row=5, column=0, padx=10, pady=10)
+    tk.Label(input_frame, text="Account Type", font=("Arial", 14)).grid(row=6, column=0, padx=10, pady=10)
 
     # Define account types and set placeholder
     account_types = ["Admin", "Staff"]
@@ -1570,7 +1727,7 @@ def add_user():
 
     account_type_option_menu = tk.OptionMenu(input_frame, selected_account_type, *account_types)
     account_type_option_menu.config(font=("Arial", 16), width=20, bg='white')
-    account_type_option_menu.grid(row=5, column=1, padx=10, pady=10, sticky='ew')
+    account_type_option_menu.grid(row=6, column=1, padx=10, pady=10, sticky='ew')
 
 
     # Optional: Function to ensure a valid selection (not the placeholder)
@@ -1601,11 +1758,12 @@ def add_user():
             confirm_password = confirm_password_entry.get()
             new_position = selected_position.get()
             new_account_type = selected_account_type.get()
+            email = email_entry.get()
 
             # Validate fields are filled
-            if validate_all_fields_filled(username_entry, password_entry, confirm_password_entry, selected_position, selected_account_type):
+            if validate_all_fields_filled(username_entry, password_entry, confirm_password_entry, selected_position, selected_account_type, email_entry):
                 # Validate user input
-                if validate_user_info('add', new_username, new_password, confirm_password, new_position, new_account_type, new_account_type, new_position):
+                if validate_user_info('add', new_username, new_password, confirm_password, new_position, new_account_type, new_account_type, new_position, email):
 
                     # raw_data = f"{new_username}:{new_position}"
                     randomUUID = str(uuid.uuid4())
@@ -1620,7 +1778,8 @@ def add_user():
                         "password": new_password,
                         "position": new_position,
                         "accountType": new_account_type,
-                        "qr_code_data": qr_code_data
+                        "qr_code_data": qr_code_data,
+                        "email": email
                     }
 
                     try:
@@ -1655,16 +1814,30 @@ def add_user():
 
         except Exception as e:
             messagebox.showerror("Unexpected Error", f"An error occurred: {e}")
+    
+    def clear_fields():
+        username_entry.delete(0, tk.END)
+        email_entry.delete(0, tk.END)
+        password_entry.delete(0, tk.END)
+        confirm_password_entry.delete(0, tk.END)
+        selected_position.set("Select Position")
+        selected_account_type.set("Select Account Type")
 
     cancel_img = ImageTk.PhotoImage(Image.open(os.path.join(os.path.dirname(__file__), 'images', 'cancelBlack_icon.png')).resize((25, 25), Image.LANCZOS))
     cancel_button = tk.Button(input_frame, text="Cancel", font=("Arial", 16), bg=motif_color, fg='white', command=show_account_setting, width=130, padx=20, relief="raised", bd=3, compound=tk.LEFT, image=cancel_img, pady=5)
     cancel_button.image = cancel_img
     cancel_button.grid(row=7, column=0, padx=(40, 60), pady=(50, 0))
 
+    clear_img = ImageTk.PhotoImage(Image.open(os.path.join(os.path.dirname(__file__), 'images', 'refresh_icon.png')).resize((25, 25), Image.LANCZOS))
+    clear_button = tk.Button(input_frame, text="Clear", font=("Arial", 16), bg=motif_color, fg='white', width=130, padx=20, relief="raised", bd=3, compound=tk.LEFT, image=clear_img, pady=5, command=clear_fields)
+    clear_button.image = clear_img
+    clear_button.grid(row=7, column=1, padx=(60, 40), pady=(50, 0))
+
+
     save_img = ImageTk.PhotoImage(Image.open(os.path.join(os.path.dirname(__file__), 'images', 'saveBlack_icon.png')).resize((25, 25), Image.LANCZOS))
     save_button = tk.Button(input_frame, text="Save", font=("Arial", 16), bg=motif_color, fg='white', width=130, padx=20, relief="raised", bd=3, compound=tk.LEFT, image=save_img, pady=5, command=add_new_user)
     save_button.image = save_img
-    save_button.grid(row=7, column=1, padx=(60, 40), pady=(50, 0))
+    save_button.grid(row=7, column=2, padx=(60, 40), pady=(50, 0))
 
 def edit_user(username):
     # Clear the content_frame
@@ -1703,31 +1876,36 @@ def edit_user(username):
     username_entry.grid(row=0, column=1, padx=10, pady=10)
     username_entry.insert(0, user_data['username'])  # Use API data
 
+    tk.Label(input_frame, text="Email", font=("Arial", 14)).grid(row=1, column=0, padx=10, pady=10)
+    email_entry = tk.Entry(input_frame, font=("Arial", 14), width=20)
+    email_entry.grid(row=1, column=1, padx=10, pady=10)
+    email_entry.insert(0, user_data['email']) 
+
     # Password Entry
-    tk.Label(input_frame, text="Password", font=("Arial", 14)).grid(row=1, column=0, padx=10, pady=10)
-    password_entry = tk.Entry(input_frame, show="*", font=("Arial", 14))
-    password_entry.grid(row=1, column=1, padx=10, pady=10)
+    tk.Label(input_frame, text="Password", font=("Arial", 14)).grid(row=2, column=0, padx=10, pady=10)
+    password_entry = tk.Entry(input_frame, font=("Arial", 14))
+    password_entry.grid(row=2, column=1, padx=10, pady=10)
     password_entry.insert(0, user_data['password'])  # Use API data
 
     # Position OptionMenu
-    tk.Label(input_frame, text="Position", font=("Arial", 14)).grid(row=2, column=0, padx=10, pady=10)
+    tk.Label(input_frame, text="Position", font=("Arial", 14)).grid(row=3, column=0, padx=10, pady=10)
     positions = ["Midwife", "BHW", "BNS", "BHC"]
     selected_position = tk.StringVar(
         value=user_data['position'] if user_data['position'] in positions else "Select Position"
     )  # Use API data
     position_option_menu = tk.OptionMenu(input_frame, selected_position, *positions)
     position_option_menu.config(font=("Arial", 16), width=20, bg='white')
-    position_option_menu.grid(row=2, column=1, padx=10, pady=10, sticky='ew')
+    position_option_menu.grid(row=3, column=1, padx=10, pady=10, sticky='ew')
 
     # Account Type OptionMenu
-    tk.Label(input_frame, text="Account Type", font=("Arial", 14)).grid(row=3, column=0, padx=10, pady=10)
+    tk.Label(input_frame, text="Account Type", font=("Arial", 14)).grid(row=4, column=0, padx=10, pady=10)
     account_types = ["Admin", "Staff"]
     selected_account_type = tk.StringVar(
         value=user_data['accountType'] if user_data['accountType'] in account_types else "Select Account Type"
     )  # Use API data
     account_type_option_menu = tk.OptionMenu(input_frame, selected_account_type, *account_types)
     account_type_option_menu.config(font=("Arial", 16), width=20, bg='white')
-    account_type_option_menu.grid(row=3, column=1, padx=10, pady=10, sticky='ew')
+    account_type_option_menu.grid(row=4, column=1, padx=10, pady=10, sticky='ew')
 
     # Customize the dropdown menu styling
     position_option_menu["menu"].config(font=("Arial", 18), activebackground="blue")
@@ -1750,13 +1928,15 @@ def edit_user(username):
         new_password = password_entry.get()
         new_position = selected_position.get()
         new_accountType = selected_account_type.get()
+        email = email_entry.get()
 
-        if validate_user_info('edit', new_username, new_password, new_password, new_position, new_accountType, user_data['accountType'], user_data['position']):
+        if validate_user_info('edit', new_username, new_password, new_password, new_position, new_accountType, user_data['accountType'], user_data['position'], email):
             update_data = {
                 "username": new_username,
                 "password": new_password,
                 "position": new_position,
-                "accountType": new_accountType
+                "accountType": new_accountType,
+                "email": email
             }
 
             try:
@@ -1970,7 +2150,7 @@ def validate_all_fields_filled(*widgets):
                 return False
     return True
 
-def validate_user_info(mode, username, password, confirm_password, position, accountType, current_accountType, current_position):
+def validate_user_info(mode, username, password, confirm_password, position, accountType, current_accountType, current_position, email):
     API_URL = "https://emc-san-mateo.com/api/query"
     # Helper function to display errors
     def show_error(message):
@@ -1999,6 +2179,39 @@ def validate_user_info(mode, username, password, confirm_password, position, acc
             return False
 
         return True
+    
+    # Validation function for email
+    def validate_email(email):
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, email):
+            show_error("Invalid email address format.")
+            return False
+        return True
+    
+    def make_api_query(query, params=None):
+        payload = {'query': query, 'params': params or []}
+        response = requests.post(API_URL, json=payload)
+        if not response.ok:
+            show_error("Error communicating with the server.")
+            return None
+        data = response.json()
+        if not data['success']:
+            show_error(f"Query error: {data['error']}")
+            return None
+        return data['data']
+
+    # Validate email
+    if not validate_email(email):
+        return False
+    
+    # Check if email belongs to another user
+    query = "SELECT username FROM users WHERE email = %s"
+    data = make_api_query(query, [email])
+    if data is None:  # If there's an error in the API call
+        return False
+    if data and data[0][0] != username:
+        show_error("Email address already belongs to another user.")
+        return False
 
     # Validate username
     if not validate_input(username, "Username"):
@@ -2130,6 +2343,10 @@ def validate_user_info(mode, username, password, confirm_password, position, acc
         if data['data'][0][0] >= 1:
             show_error("Can't add more accounts for Brgy Health Councilor.")
             return False
+
+    if username == password or username == confirm_password:
+        show_error("Username can't similar with password")
+        return False
 
     return True
 
@@ -3181,8 +3398,10 @@ class MedicineDeposit:
 
             # Define the print task in a separate thread to prevent UI freezing
             def print_task():
-                notification_manager = NotificationManager(root, log=True)
-                notification_manager.start_checking() 
+                notification_manager = NotificationManager(root, log=True) 
+                medicines = notification_manager.check_soon_to_expire()
+                notif_count = len(medicines)
+                notification_button.config(text=f'Expiration ({notif_count})')
                 try:
                     with serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=TIMEOUT) as printer:
                         # If the unit is 'syrup', repeat printing based on quantity
