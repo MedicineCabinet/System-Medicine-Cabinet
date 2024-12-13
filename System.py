@@ -24,6 +24,7 @@ import json
 import requests
 import hashlib
 import uuid
+import re
 
 
 INACTIVITY_PERIOD = 300000 #automatic logout timer in milliseconds
@@ -40,8 +41,11 @@ default_bg_color = motif_color  # Default background color
 active_fg_color ='#000000' # Active foreground color
 default_fg_color="#fff" # Default foreground color
 
-# Create a path to store the file in a 'door_status' folder within the current directory
-file_path = os.path.join(os.getcwd(), "door_status", "door_status.txt")
+#Get the desktop directory path
+desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
+
+# Create the file path in the door_status directory on the desktop
+file_path = os.path.join(desktop_path, "door_status", "door_status.txt")
 
 # Ensure the folder exists before writing the file
 os.makedirs(os.path.dirname(file_path), exist_ok=True)
@@ -932,7 +936,7 @@ def show_medicine_supply():
 
     # Extract CSV button
     extract_img = ImageTk.PhotoImage(Image.open(os.path.join(os.path.dirname(__file__), 'images', 'extract_icon.png')).resize((25, 25), Image.LANCZOS))
-    extract_button = tk.Button(button_frame, text="Extract CSV", padx=20, pady=10, font=('Arial', 18), bg=motif_color, fg="white", relief="raised", bd=4, compound=tk.LEFT, image=extract_img, command=lambda: export_to_csv(root,'medicine_inventory'))
+    extract_button = tk.Button(button_frame, text="Extract", padx=20, pady=10, font=('Arial', 18), bg=motif_color, fg="white", relief="raised", bd=4, compound=tk.LEFT, image=extract_img, command=lambda: export_to_csv(root,'medicine_inventory'))
     extract_button.image = extract_img
     extract_button.grid(row=0, column=2, padx=20, pady=(12, 7), sticky='ew')
 
@@ -1401,7 +1405,6 @@ def show_notification_table():
 
     refresh_but = tk.Button(content_frame, bg=motif_color, fg='white', text='Refresh', font=('Arial', 18), command=lambda: NotificationManager(root, asap=False, log=True), padx=10, pady=10, relief='raised')
     refresh_but.pack(anchor='e', padx=10, pady=5)
-
 #------------------------------------------------------ACCOUNT SETTINGS FRAME----------------------------------------------------------------------
 def show_account_setting():
     clear_frame()
@@ -1447,7 +1450,7 @@ def show_account_setting():
             position = user['position']
             accountType = user['accountType']
             email = user['email']
-            status = "Active" if user.get('status', 0) == 1 else "Deactive"
+            status = "Activated" if user.get('status', 0) == 1 else "Deactivated"
             tag = 'evenrow' if i % 2 == 0 else 'oddrow'
             tree.insert("", "end", values=(username, position, accountType, email, status), tags=(tag,))
     except requests.exceptions.RequestException as e:
@@ -1486,12 +1489,12 @@ def show_account_setting():
         edit_button.grid(row=0, column=1, padx=20, pady=10, sticky="ew")
 
         activate_img = ImageTk.PhotoImage(Image.open(os.path.join(os.path.dirname(__file__), 'images', 'accountSetting_Icon.png')).resize((25, 25), Image.LANCZOS))
-        activate_button = tk.Button(button_frame, text="Delete User", font=("Arial", 15), pady=20, padx=25, bg=motif_color, fg='white', height=25, relief="raised", bd=3, compound=tk.LEFT, image=activate_img, command=lambda: toggle_user_status(tree, Username))
+        activate_button = tk.Button(button_frame, text="Activate User/\nDeactivate User", font=("Arial", 15), pady=20, padx=25, bg=motif_color, fg='white', height=25, relief="raised", bd=3, compound=tk.LEFT, image=activate_img, command=lambda: toggle_user_status(tree, Username))
         activate_button.image = activate_img
         activate_button.grid(row=0, column=2, padx=20, pady=10, sticky="ew")
 
         delete_img = ImageTk.PhotoImage(Image.open(os.path.join(os.path.dirname(__file__), 'images', 'delete_icon.png')).resize((25, 25), Image.LANCZOS))
-        delete_button = tk.Button(button_frame, text="Activate User/\nDeactivate User", font=("Arial", 15), pady=20, padx=25, bg=motif_color, fg='white', height=25, relief="raised", bd=3, compound=tk.LEFT, image=delete_img, command=lambda: delete_selected_user(tree, Username))
+        delete_button = tk.Button(button_frame, text="Delete User", font=("Arial", 15), pady=20, padx=25, bg=motif_color, fg='white', height=25, relief="raised", bd=3, compound=tk.LEFT, image=delete_img, command=lambda: delete_selected_user(tree, Username))
         delete_button.image = delete_img
         delete_button.grid(row=0, column=3, padx=20, pady=10, sticky="ew")
 
@@ -1563,7 +1566,7 @@ def toggle_user_status(tree, authenticated_user):
     # Define callbacks for confirmation dialog
     def yes_toggle():
         # Prevent deactivating the last admin account
-        if status == "Active" and username == authenticated_user and account_type == "Admin" and admin_count <= 1:
+        if status == "Active" and account_type == "Admin" and admin_count <= 1:
             CustomMessageBox(
                 root=tree,
                 title="Action Denied",
@@ -1573,6 +1576,10 @@ def toggle_user_status(tree, authenticated_user):
             )
             return
         toggle_status_request()
+        if username == authenticated_user:
+            logout_with_sensor_check("deactivate own")
+        else:
+            show_account_setting()  # Refresh the account settings
 
     def no_toggle():
         print("User status change canceled.")
@@ -1582,7 +1589,8 @@ def toggle_user_status(tree, authenticated_user):
         confirm_message = f"Are you sure you want to deactivate the user '{username}'?"
     else:
         confirm_message = f"Are you sure you want to activate the user '{username}'?"
-
+    if username == authenticated_user:
+        confirm_message=f"Are you sure you want to deactivate your own account '{username}'?", 
     # Show confirmation dialog
     CustomMessageBox(
         root=tree,
@@ -1691,24 +1699,39 @@ def add_user():
     keyboard.create_keyboard()
     keyboard.hide_keyboard()
 
-    tk.Label(input_frame, text="Username", font=("Arial", 14)).grid(row=1, column=0, padx=10, pady=10)
+    tk.Label(input_frame, text="Username", font=("Arial", 14)).grid(row=1, column=0, padx=10, pady=9)
     username_entry = tk.Entry(input_frame, font=("Arial", 14), width=20)
     username_entry.grid(row=1, column=1, padx=10, pady=10)
 
-    tk.Label(input_frame, text="Email", font=("Arial", 14)).grid(row=2, column=0, padx=10, pady=10)
+    tk.Label(input_frame, text="Email", font=("Arial", 14)).grid(row=2, column=0, padx=10, pady=9)
     email_entry = tk.Entry(input_frame, font=("Arial", 14), width=20)
-    email_entry.grid(row=2, column=1, padx=10, pady=10)
+    email_entry.grid(row=2, column=1, padx=10, pady=9)
 
-    tk.Label(input_frame, text="Password", font=("Arial", 14)).grid(row=3, column=0, padx=10, pady=10)
+    tk.Label(input_frame, text="Password", font=("Arial", 14)).grid(row=3, column=0, padx=10, pady=9)
     password_entry = tk.Entry(input_frame, show="*", font=("Arial", 14), width=20)
-    password_entry.grid(row=3, column=1, padx=10, pady=10)
+    password_entry.grid(row=3, column=1, padx=10, pady=9)
 
-    tk.Label(input_frame, text="Confirm Password", font=("Arial", 14)).grid(row=4, column=0, padx=10, pady=10)
+    tk.Label(input_frame, text="Confirm Password", font=("Arial", 14)).grid(row=4, column=0, padx=10, pady=9)
     confirm_password_entry = tk.Entry(input_frame, show="*", font=("Arial", 14), width=20)
-    confirm_password_entry.grid(row=4, column=1, padx=10, pady=10)
+    confirm_password_entry.grid(row=4, column=1, padx=10, pady=9)
+
+    # Function to show/hide password based on Checkbutton state
+    def toggle_password_visibility():
+        if show_password_var.get():
+            password_entry.config(show='')
+            confirm_password_entry.config(show='')
+        else:
+            password_entry.config(show='*')
+            confirm_password_entry.config(show='*')
+
+    # Variable to track the state of the Checkbutton
+    show_password_var = tk.BooleanVar()
+    show_password_checkbutton = tk.Checkbutton(input_frame, text="Show Password", variable=show_password_var,
+                                                command=toggle_password_visibility, font=("Arial", 13))
+    show_password_checkbutton.grid(row=5, column=1, padx=5, pady=(2, 5)) 
 
     # Position OptionMenu
-    tk.Label(input_frame, text="Position", font=("Arial", 14)).grid(row=5, column=0, padx=10, pady=10)
+    tk.Label(input_frame, text="Position", font=("Arial", 14)).grid(row=6, column=0, padx=10, pady=9)
 
     # Define positions and set placeholder
     positions = ["Midwife", "BHW", "BNS", "BHC"]
@@ -1716,10 +1739,10 @@ def add_user():
 
     position_option_menu = tk.OptionMenu(input_frame, selected_position, *positions)
     position_option_menu.config(font=("Arial", 16), width=20, bg='white')
-    position_option_menu.grid(row=5, column=1, padx=10, pady=10, sticky='ew')
+    position_option_menu.grid(row=6, column=1, padx=10, pady=9, sticky='ew')
 
     # Account Type OptionMenu
-    tk.Label(input_frame, text="Account Type", font=("Arial", 14)).grid(row=6, column=0, padx=10, pady=10)
+    tk.Label(input_frame, text="Account Type", font=("Arial", 14)).grid(row=7, column=0, padx=10, pady=9)
 
     # Define account types and set placeholder
     account_types = ["Admin", "Staff"]
@@ -1727,7 +1750,7 @@ def add_user():
 
     account_type_option_menu = tk.OptionMenu(input_frame, selected_account_type, *account_types)
     account_type_option_menu.config(font=("Arial", 16), width=20, bg='white')
-    account_type_option_menu.grid(row=6, column=1, padx=10, pady=10, sticky='ew')
+    account_type_option_menu.grid(row=7, column=1, padx=10, pady=9, sticky='ew')
 
 
     # Optional: Function to ensure a valid selection (not the placeholder)
@@ -1747,7 +1770,7 @@ def add_user():
     selected_account_type.trace_add("write", lambda *args: validate_selection(selected_account_type, "Select Account Type", account_types))
 
 
-    for widget in [username_entry, password_entry, confirm_password_entry]:
+    for widget in [username_entry, password_entry, confirm_password_entry, email_entry]:
         widget.bind("<FocusIn>", lambda e: keyboard.show_keyboard())
         widget.bind("<FocusOut>", lambda e: keyboard.hide_keyboard())
 
@@ -1826,18 +1849,18 @@ def add_user():
     cancel_img = ImageTk.PhotoImage(Image.open(os.path.join(os.path.dirname(__file__), 'images', 'cancelBlack_icon.png')).resize((25, 25), Image.LANCZOS))
     cancel_button = tk.Button(input_frame, text="Cancel", font=("Arial", 16), bg=motif_color, fg='white', command=show_account_setting, width=130, padx=20, relief="raised", bd=3, compound=tk.LEFT, image=cancel_img, pady=5)
     cancel_button.image = cancel_img
-    cancel_button.grid(row=7, column=0, padx=(40, 60), pady=(50, 0))
+    cancel_button.grid(row=8, column=0, padx=40, pady=(40, 0))
 
     clear_img = ImageTk.PhotoImage(Image.open(os.path.join(os.path.dirname(__file__), 'images', 'refresh_icon.png')).resize((25, 25), Image.LANCZOS))
     clear_button = tk.Button(input_frame, text="Clear", font=("Arial", 16), bg=motif_color, fg='white', width=130, padx=20, relief="raised", bd=3, compound=tk.LEFT, image=clear_img, pady=5, command=clear_fields)
     clear_button.image = clear_img
-    clear_button.grid(row=7, column=1, padx=(60, 40), pady=(50, 0))
+    clear_button.grid(row=8, column=1, padx=40, pady=(40, 0))
 
 
     save_img = ImageTk.PhotoImage(Image.open(os.path.join(os.path.dirname(__file__), 'images', 'saveBlack_icon.png')).resize((25, 25), Image.LANCZOS))
     save_button = tk.Button(input_frame, text="Save", font=("Arial", 16), bg=motif_color, fg='white', width=130, padx=20, relief="raised", bd=3, compound=tk.LEFT, image=save_img, pady=5, command=add_new_user)
     save_button.image = save_img
-    save_button.grid(row=7, column=2, padx=(60, 40), pady=(50, 0))
+    save_button.grid(row=8, column=2, padx=40, pady=(40, 0))
 
 def edit_user(username):
     # Clear the content_frame
@@ -1883,29 +1906,42 @@ def edit_user(username):
 
     # Password Entry
     tk.Label(input_frame, text="Password", font=("Arial", 14)).grid(row=2, column=0, padx=10, pady=10)
-    password_entry = tk.Entry(input_frame, font=("Arial", 14))
+    password_entry = tk.Entry(input_frame, font=("Arial", 14), show='*')
     password_entry.grid(row=2, column=1, padx=10, pady=10)
     password_entry.insert(0, user_data['password'])  # Use API data
 
+    # Function to show/hide password based on Checkbutton state
+    def toggle_password_visibility():
+        if show_password_var.get():
+            password_entry.config(show='')
+        else:
+            password_entry.config(show='*')
+
+    # Variable to track the state of the Checkbutton
+    show_password_var = tk.BooleanVar()
+    show_password_checkbutton = tk.Checkbutton(input_frame, text="Show Password", variable=show_password_var,
+                                                command=toggle_password_visibility, font=("Arial", 13))
+    show_password_checkbutton.grid(row=3, column=1, padx=5, pady=(2, 5)) 
+
     # Position OptionMenu
-    tk.Label(input_frame, text="Position", font=("Arial", 14)).grid(row=3, column=0, padx=10, pady=10)
+    tk.Label(input_frame, text="Position", font=("Arial", 14)).grid(row=4, column=0, padx=10, pady=10)
     positions = ["Midwife", "BHW", "BNS", "BHC"]
     selected_position = tk.StringVar(
         value=user_data['position'] if user_data['position'] in positions else "Select Position"
     )  # Use API data
     position_option_menu = tk.OptionMenu(input_frame, selected_position, *positions)
     position_option_menu.config(font=("Arial", 16), width=20, bg='white')
-    position_option_menu.grid(row=3, column=1, padx=10, pady=10, sticky='ew')
+    position_option_menu.grid(row=4, column=1, padx=10, pady=10, sticky='ew')
 
     # Account Type OptionMenu
-    tk.Label(input_frame, text="Account Type", font=("Arial", 14)).grid(row=4, column=0, padx=10, pady=10)
+    tk.Label(input_frame, text="Account Type", font=("Arial", 14)).grid(row=5, column=0, padx=10, pady=10)
     account_types = ["Admin", "Staff"]
     selected_account_type = tk.StringVar(
         value=user_data['accountType'] if user_data['accountType'] in account_types else "Select Account Type"
     )  # Use API data
     account_type_option_menu = tk.OptionMenu(input_frame, selected_account_type, *account_types)
     account_type_option_menu.config(font=("Arial", 16), width=20, bg='white')
-    account_type_option_menu.grid(row=4, column=1, padx=10, pady=10, sticky='ew')
+    account_type_option_menu.grid(row=5, column=1, padx=10, pady=10, sticky='ew')
 
     # Customize the dropdown menu styling
     position_option_menu["menu"].config(font=("Arial", 18), activebackground="blue")
@@ -1971,20 +2007,20 @@ def edit_user(username):
     cancel_img = ImageTk.PhotoImage(Image.open(os.path.join(os.path.dirname(__file__), 'images', 'cancelBlack_icon.png')).resize((25, 25), Image.LANCZOS))
     cancel_button = tk.Button(input_frame, text="Cancel", font=("Arial", 16), bg=motif_color, fg='white', command=show_account_setting, padx=20, relief="raised", bd=3, compound=tk.LEFT, image=cancel_img, pady=5)
     cancel_button.image = cancel_img
-    cancel_button.grid(row=5, column=0, pady=(50, 0))
+    cancel_button.grid(row=6, column=0, pady=(50, 0))
 
     # New "Decode QR" button between Cancel and Save
     decode_qr_button = tk.Button(input_frame, text="Print QR", font=("Arial", 16), bg=motif_color, fg='white', command=decode_and_generate_qr, padx=20, relief="raised", bd=3, compound=tk.LEFT, pady=5)
-    decode_qr_button.grid(row=5, column=1, pady=(50, 0))  # Position the new button between Cancel and Save
+    decode_qr_button.grid(row=6, column=1, pady=(50, 0))  # Position the new button between Cancel and Save
 
     # Save button
     save_img = ImageTk.PhotoImage(Image.open(os.path.join(os.path.dirname(__file__), 'images', 'saveBlack_icon.png')).resize((25, 25), Image.LANCZOS))
     save_button = tk.Button(input_frame, text="Save", font=("Arial", 16), bg=motif_color, fg='white', padx=20, relief="raised", bd=3, compound=tk.LEFT, image=save_img, pady=5, command=save_changes)
     save_button.image = save_img
-    save_button.grid(row=5, column=2, pady=(50, 0))
+    save_button.grid(row=6, column=2, pady=(50, 0))
 
     # Bind the focus events to show/hide the keyboard for each widget
-    for widget in [username_entry, password_entry]:
+    for widget in [username_entry, password_entry, email_entry]:
         widget.bind("<FocusIn>", lambda e: keyboard.show_keyboard())
         widget.bind("<FocusOut>", lambda e: keyboard.hide_keyboard())
 
@@ -2224,6 +2260,10 @@ def validate_user_info(mode, username, password, confirm_password, position, acc
     # Check if passwords match
     if password != confirm_password:
         show_error("Passwords do not match.")
+        return False
+    
+    if email == "medicinecabinet.sanmateo@gmail.com":
+        show_error("Your email is not valid to use.\nPlease use another email.")
         return False
 
     # Check if username already exists (for 'add' mode only)

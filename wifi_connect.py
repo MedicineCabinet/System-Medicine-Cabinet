@@ -12,11 +12,11 @@ motif_color = '#42a7f5'
 
 class WiFiConnectUI(tk.Toplevel):
     def __init__(self, parent):
+        from  System import CustomMessageBox
         super().__init__(parent)
         self.title("Connect to Wi-Fi")
+        self.overrideredirect(True)
         self.configure(bg='#f7f7f7')
-        self.grab_set()
-        self.attributes('-topmost', True)
 
         self.geometry("300x320")
         self.center_window(300, 320)
@@ -29,7 +29,14 @@ class WiFiConnectUI(tk.Toplevel):
             time.sleep(1)
 
         if self.iface.status() == const.IFACE_INACTIVE:
-            messagebox.showerror("Wi-Fi Error", "No active Wi-Fi interface found.")
+            message_box = CustomMessageBox(
+                root=self,
+                title="Wi-Fi Error",
+                color='red',
+                message="No active Wi-Fi interface found.",
+                icon_path=os.path.join(os.path.dirname(__file__), 'images', 'warningGrey_icon.png'),
+                not_allow_idle=True
+            )
             return
 
         self.loading_label = tk.Label(self, text="Scanning Available Wi-Fi...", font=("Arial", 16), bg='#f7f7f7')
@@ -52,25 +59,54 @@ class WiFiConnectUI(tk.Toplevel):
         self.geometry(f"{width}x{height}+{x}+{y}")
 
     def scan_wifi(self):
+        from System import CustomMessageBox
         try:
             self.iface.scan()
             self.after(10000, self.update_wifi_results)
         except Exception as e:
-            messagebox.showerror("Scan Error", f"Error scanning for networks: {e}")
-            print(f"Scan Error: {e}")
+            message_box = CustomMessageBox(
+                root=self,
+                title="Scan Error",
+                color='red',
+                message=f"Error scanning for networks: {e}",
+                icon_path=os.path.join(os.path.dirname(__file__), 'images', 'warningGrey_icon.png'),
+                not_allow_idle=True
+            )
 
     def update_wifi_results(self):
-        scan_results = self.iface.scan_results()
-        networks = [result.ssid for result in scan_results if result.ssid]
-        print("Found networks:", networks)
+        from System import CustomMessageBox
+        try:
+            scan_results = self.iface.scan_results()
+            networks = [
+                {"ssid": result.ssid, "is_open": not result.akm}  # Check if the network is open (no AKM type)
+                for result in scan_results if result.ssid
+            ]
+            print("Found networks:", networks)
 
-        self.attributes('-fullscreen', True)
+            self.state("zoomed")
+            self.resizable(width=False, height=False)
 
-        if networks:
-            self.create_widgets(networks)
-        else:
-            messagebox.showinfo("Wi-Fi Scan", "No networks found!")
-            self.create_widgets([])
+            if networks:
+                self.create_widgets(networks)
+            else:
+                message_box = CustomMessageBox(
+                    root=self,
+                    title="Wi-Fi Scan",
+                    color='red',
+                    message="No networks found!",
+                    icon_path=os.path.join(os.path.dirname(__file__), 'images', 'warningGrey_icon.png'),
+                    not_allow_idle=True
+                )
+                self.create_widgets([])
+        except Exception as e:
+            message_box = CustomMessageBox(
+                root=self,
+                title="Scan Error",
+                color='red',
+                message=f"Error scanning for networks: {e}",
+                icon_path=os.path.join(os.path.dirname(__file__), 'images', 'warningGrey_icon.png'),
+                not_allow_idle=True
+            )
 
     def create_widgets(self, networks):
         self.loading_label.pack_forget()
@@ -88,19 +124,25 @@ class WiFiConnectUI(tk.Toplevel):
 
         tk.Label(UI_frame, text="Select Wi-Fi Network", font=("Arial", 14), bg='#f7f7f7').grid(row=0, column=1, pady=10)
 
-        self.network_combobox = ttk.Combobox(UI_frame, values=networks, state="readonly", font=("Arial", 12))
+        # Store network security information
+        self.networks_info = {net['ssid']: net['is_open'] for net in networks}
+        self.network_combobox = ttk.Combobox(UI_frame, values=[net['ssid'] for net in networks], state="readonly", font=("Arial", 14))
         self.network_combobox.grid(row=1, column=1, pady=10)
         if networks:
             self.network_combobox.current(0)
 
-        tk.Label(UI_frame, text="Wi-Fi Password", font=("Arial", 14), bg='#f7f7f7').grid(row=2, column=1, pady=10)
-        self.password_entry = tk.Entry(UI_frame, show="*", font=("Arial", 12))
+        self.network_combobox.bind("<<ComboboxSelected>>", self.on_network_selection)
+
+        self.password_label = tk.Label(UI_frame, text="Wi-Fi Password", font=("Arial", 14), bg='#f7f7f7')
+        self.password_label.grid(row=2, column=1, pady=10)
+
+        self.password_entry = tk.Entry(UI_frame, show="*", font=("Arial", 14))
         self.password_entry.grid(row=3, column=1, pady=10)
 
         self.show_password_var = tk.IntVar()
         self.show_password_check = tk.Checkbutton(UI_frame, text="Show Password", variable=self.show_password_var,
-                                                  command=self.toggle_password_visibility, bg='#f7f7f7', font=("Arial", 10))
-        self.show_password_check.grid(row=4, column=1, pady=5)
+                                                command=self.toggle_password_visibility, bg='#f7f7f7', font=("Arial", 14))
+        self.show_password_check.grid(row=4, column=1, pady=3)
 
         self.connect_button = tk.Button(UI_frame, text="Connect", font=("Arial", 14, 'bold'), bg=motif_color, fg='white', padx=20, command=self.connect_to_wifi)
         self.connect_button.grid(row=5, column=1, pady=20)
@@ -114,6 +156,19 @@ class WiFiConnectUI(tk.Toplevel):
         self.password_entry.bind("<FocusIn>", lambda e: self.show_on_screen_keyboard(self.password_entry))
         self.password_entry.bind("<FocusOut>", lambda e: self.hide_on_screen_keyboard())
 
+    def on_network_selection(self, event):
+        selected_network = self.network_combobox.get()
+        is_open = self.networks_info.get(selected_network, False)
+
+        if is_open:
+            self.password_label.grid_remove()
+            self.password_entry.grid_remove()
+            self.show_password_check.grid_remove()
+        else:
+            self.password_label.grid()
+            self.password_entry.grid()
+            self.show_password_check.grid()
+
     def toggle_password_visibility(self):
         if self.show_password_var.get():
             self.password_entry.config(show="")
@@ -126,10 +181,24 @@ class WiFiConnectUI(tk.Toplevel):
         password = self.password_entry.get()
 
         if not selected_network:
-            messagebox.showwarning("Input Error", "Please select a network.")
+            message_box = CustomMessageBox(
+                root=self,
+                title="Input Error",
+                color='red',
+                message="Please select a network.",
+                icon_path=os.path.join(os.path.dirname(__file__), 'images', 'warningGrey_icon.png'),
+                not_allow_idle=True
+            )
             return
         if not password:
-            messagebox.showwarning("Input Error", "Please enter the Wi-Fi password.")
+            message_box = CustomMessageBox(
+                root=self,
+                title="Input Error",
+                color='red',
+                message="Please enter the Wi-Fi password.\n\n(If the selected network has no password, please connect to a more secured network)",
+                icon_path=os.path.join(os.path.dirname(__file__), 'images', 'warningGrey_icon.png'),
+                not_allow_idle=True
+            )
             return
 
         self.wifi_label_status.config(text="Connecting...", fg='green')
@@ -175,7 +244,14 @@ class WiFiConnectUI(tk.Toplevel):
 
         else:
             error_message = self.get_error_message()
-            messagebox.showerror("Failed", f"Failed to connect to the network. {error_message}")
+            message_box = CustomMessageBox(
+                root=self,
+                title="Error",
+                color='red',
+                message=f"Failed to connect to the network. {error_message}",
+                icon_path=os.path.join(os.path.dirname(__file__), 'images', 'warningGrey_icon.png'),
+                not_allow_idle=True
+            )
 
     def get_error_message(self):
         status = self.iface.status()
